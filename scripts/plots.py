@@ -13,7 +13,7 @@ if script_directory:
     script_directory  = script_directory + '/'
 data_directory = script_directory +  '../data/'
 
-data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json'}
+data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 
 
 def plot_T_composition(T, n, labels, title, filename=False):
@@ -179,7 +179,7 @@ def main():
     T = np.linspace(10,1500,200)
     P = 1E5
 
-    data = compute_data(T=T)
+    data = compute_data(T=T, functionals=['PBE0_scaled'])
     plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
 
     P = [1E3,1E5,1E7]

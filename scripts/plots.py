@@ -105,7 +105,7 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
         P: iterable of pressures in Pa
     Returns
         data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
-              Each namedtuple contains the nested lists n[T][P], mu[T][P] and list labels.
+              Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
               n: atom frac of S of each species, corresponding to labels
               mu: free energy of mixture on atom basis in J mol-1
               labels: identity labels of each species in mixture
@@ -136,7 +136,7 @@ def plot_mu_functionals(data, T, P, functionals=False, filename=False, compact=F
 
     Arguments:
         data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
-              Each namedtuple contains the nested lists n[T][P], mu[T][P] and list labels.
+              Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
               n: atom frac of S of each species, corresponding to labels
               mu: free energy of mixture on atom basis in J mol-1
               labels: identity labels of each species in mixture
@@ -174,17 +174,58 @@ def plot_mu_functionals(data, T, P, functionals=False, filename=False, compact=F
         else:
             plt.show()
         plt.close()
+
+def tabulate_data(data,T,P,path=''):
+    """
+    Write tables of composition and free energy
     
+    Arguments:
+            data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
+              Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
+              n: atom frac of S of each species, corresponding to labels
+              mu: free energy of mixture on atom basis in J mol-1
+              labels: identity labels of each species in mixture
+            T: Iterable containing temperature values in K corresponding to data
+            P: Iterable containing pressure values in Pa corresponding to data
+            path: directory for csv files to be written in
+    """
+
+    import string
+    if path:
+        if path[-1] != '/':
+            path = path + '/'
+
+    for functional in data.keys():
+        with open(path + 'mu_{0}.csv'.format(functional.lower()), 'w') as f:
+            linelist = ['# T/K,' + string.join(['mu ({0} Pa) / J mol-1'.format(p) for p in P],',') + '\n']
+            for t_index, t in enumerate(T):
+                linelist.append( '{0},'.format(t) + string.join(['{0:1.4f}'.format(mu_p[t_index]) for mu_p in data[functional].mu],',') + '\n')
+            f.writelines(linelist)
+
+    for functional in data.keys():
+        with open(path + 'n_{0}.csv'.format(functional.lower()), 'w') as f:
+            for p_index, p in enumerate(P):
+                linelist = ['# P = {0} Pa\n'.format(p)]
+                linelist.append('# T/K, ' + string.join(['x({0})'.format(x) for x in data[functional].labels],',') + '\n')
+                for t_index, t in enumerate(T):
+                    linelist.append('{0},'.format(t) + string.join(['{0:1.4f}'.format(n) for n in data[functional].n[p_index][t_index]],',') + '\n')
+                f.writelines(linelist)
+        
 def main():
-    T = np.linspace(10,1500,200)
+    T = np.linspace(50,1500,50)
     P = 1E5
 
     data = compute_data(T=T, functionals=['PBE0_scaled'])
     plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
 
-    P = [1E3,1E5,1E7]
+
+    T = np.arange(50,1500,50)
+    P = [10**x for x in range(1,7)]
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    tabulate_data(data,T,P, path='data')
+
     plot_mu_functionals(data, T, P, filename=False, compact=False)
+
                 
 if __name__ == '__main__':
     main()

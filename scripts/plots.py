@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 import os # get correct path for datafiles when called from another directory
 import sys # PATH manipulation to ensure sulfur module is available
 from itertools import izip
@@ -12,15 +13,16 @@ script_directory = os.path.dirname(__file__)
 if script_directory:
     script_directory  = script_directory + '/'
 module_directory = os.path.abspath(script_directory + '..')
-data_directory = script_directory +  '../data/'
+data_directory = os.path.abspath(script_directory +  '../data')
 sys.path.insert(0,module_directory)
-
-print sys.path[0]
 
 from sulfur import get_potentials, unpack_data, reference_energy, solve_composition
 
+ordered_species = ['S2','S3_ring','S3_bent','S4_buckled','S4_eclipsed', 'S4_C2h','S5_ring','S6_stack_S3','S6_branched','S6_buckled','S6_chain_63','S7_ring','S7_branched','S8']
+
 data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 
+species_colors = {'S2':'#222222','S3_ring':'#a6cee3','S3_bent':'#1f78b4','S4_buckled':'#b2df8a','S4_eclipsed':'#33a02c','S5_ring':'#fb9a99','S6_stack_S3':'#e31a1c','S6_branched':'#fdbf6f','S6_buckled':'#ff7f00','S6_chain_63':'#cab2d6','S7_ring':'#6a3d9a','S7_branched':'#bbbb55','S4_C2h':'#b04040','S8':'#b15928'}
 
 def plot_T_composition(T, n, labels, title, filename=False):
     axis=plt.gca()
@@ -41,6 +43,67 @@ def plot_T_composition(T, n, labels, title, filename=False):
         plt.show()
     plt.close()
 
+def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
+    """
+    Plot composition vs T over a range of pressures and DFT functionals in a neat tiled array
+
+    Arguments:        
+        T: iterable of temperatures in K
+        P: iterable of pressures in Pa
+        data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
+              Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
+              n: atom frac of S of each species, corresponding to labels
+              mu: free energy of mixture on atom basis in J mol-1
+              labels: identity labels of each species in mixture
+        functionals: iterable of strings identifying DFT dataset; each string must be a key in 'data_sets' dict
+        filename: path to output file. If False (default), print to screen instead.
+
+    """
+    from matplotlib import gridspec
+
+    fig = plt.figure(figsize =  (17.2 / 2.54, 17 / 2.54))
+    gs = gridspec.GridSpec(len(P),len(functionals), bottom=0.25)
+
+    tick_length = 4
+    tick_width = 0.5
+    
+    for row, functional in enumerate(functionals):
+        color_cycle = [species_colors[species] for species in data[functional].labels]
+        for col, p in enumerate(P):
+            ax = plt.subplot(gs[row,col])
+            ax.set_color_cycle(color_cycle)
+            ax.plot(T, data[functional].n[col][:])
+            ml = MultipleLocator(400)
+            ax.xaxis.set_major_locator(ml)
+            ax.axes.set_ylim([0,1])
+            ax.axes.set_xlim([200,1500])
+            
+            if row == 0:
+                ax.set_title("$10^{" + "{0:d}".format(int(np.log10(p))) + "}$ Pa")
+                ax.set_xticklabels('',visible=False)
+            elif row != len(P) -1:
+                ax.set_xticklabels('',visible=False)
+            else:
+                pass # Show x-axis labels on bottom row
+
+            if col == 0:
+                ax.axes.set_ylabel(functional)
+                ax.set_yticks([0,1])
+                ax.set_yticklabels(['0','1'])
+                ml = MultipleLocator(0.2)
+                ax.yaxis.set_minor_locator(ml)
+                ax.tick_params('both',length=tick_length,width=tick_width, which='both')
+            else:
+                ax.set_yticklabels('',visible=False)
+                ax.tick_params('both',length=tick_length,width=tick_width, which='both')
+
+    plt.legend([plt.Line2D((0,1),(0,0), color=species_colors[species]) for species in ordered_species], ordered_species, ncol=4, loc='center', bbox_to_anchor=(0.5,0.125), bbox_transform=fig.transFigure, fontsize=11)
+    if filename:
+        plt.savefig(filename)
+    else:
+        plt.show()
+
+
 def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False, filename=False):
 
     if not T:
@@ -48,7 +111,7 @@ def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False
     if not P_list:
         P_list = [1E2, 1E5, 1E7]
 
-    db_file = data_directory + data_sets[functional]
+    db_file = data_directory + '/' + data_sets[functional]
     labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV'))
 
     if compact:
@@ -121,7 +184,7 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
     P_ref = 1E5
     eqm_data = {}
     for functional in functionals:
-        db_file = data_directory + data_sets[functional]
+        db_file = data_directory + '/' + data_sets[functional]
         labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV'))
         n = []
         mu = []
@@ -218,21 +281,24 @@ def tabulate_data(data,T,P,path=''):
                 f.writelines(linelist)
         
 def main():
-    T = np.linspace(50,1500,50)
-    P = 1E5
-
-    data = compute_data(T=T, functionals=['PBE0_scaled'])
-    plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
-
+    # T = np.linspace(50,1500,50)
+    # P = 1E5
+    # data = compute_data(T=T, functionals=['PBE0_scaled'])
+    # plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
 
     T = np.arange(50,1500,50)
-    P = [10**x for x in range(1,7)]
+    P = [10**x for x in (1,5,7)]
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
     tabulate_data(data,T,P, path=data_directory)
-
-    plot_mu_functionals(data, T, P, filename=False, compact=False)
+    
+    plot_composition(T, P, data, functionals=('LDA','PBEsol','PBE0_scaled'), filename='composition.pdf')
+    # plot_mu_functionals(data, T, P, filename=False, compact=False)  
 
                 
 if __name__ == '__main__':
     main()
+
+
+
+
 

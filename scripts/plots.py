@@ -17,7 +17,7 @@ sys.path.insert(0,module_directory)
 
 print sys.path[0]
 
-from sulfur.core import get_potentials, unpack_data, reference_energy, solve_composition
+from sulfur import get_potentials, unpack_data, reference_energy, solve_composition
 
 data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 

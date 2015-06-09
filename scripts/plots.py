@@ -2,16 +2,22 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os # get correct path for datafiles when called from another directory
+import sys # PATH manipulation to ensure sulfur module is available
 from itertools import izip
 from collections import namedtuple
-from sulfur.core import get_potentials, unpack_data, reference_energy, solve_composition
 
 script_directory = os.path.dirname(__file__)
 # Append a trailing slash to make coherent directory name - this would select the
 # root directory in the case of no prefix, so we need to check
 if script_directory:
     script_directory  = script_directory + '/'
+module_directory = os.path.abspath(script_directory + '..')
 data_directory = script_directory +  '../data/'
+sys.path.insert(0,module_directory)
+
+print sys.path[0]
+
+from sulfur.core import get_potentials, unpack_data, reference_energy, solve_composition
 
 data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 
@@ -222,7 +228,7 @@ def main():
     T = np.arange(50,1500,50)
     P = [10**x for x in range(1,7)]
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path='data')
+    tabulate_data(data,T,P, path=data_directory)
 
     plot_mu_functionals(data, T, P, filename=False, compact=False)
 

@@ -84,7 +84,7 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
             elif row != len(P) -1:
                 ax.set_xticklabels('',visible=False)
             else:
-                pass # Show x-axis labels on bottom row
+                ax.axes.set_xlabel('Temperature / K')
 
             if col == 0:
                 ax.axes.set_ylabel(functional)
@@ -97,7 +97,7 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
                 ax.set_yticklabels('',visible=False)
                 ax.tick_params('both',length=tick_length,width=tick_width, which='both')
 
-    plt.legend([plt.Line2D((0,1),(0,0), color=species_colors[species]) for species in ordered_species], ordered_species, ncol=4, loc='center', bbox_to_anchor=(0.5,0.125), bbox_transform=fig.transFigure, fontsize=11)
+    plt.legend([plt.Line2D((0,1),(0,0), color=species_colors[species]) for species in ordered_species], ordered_species, ncol=4, loc='center', bbox_to_anchor=(0.5,0.1), bbox_transform=fig.transFigure, fontsize=11)
     if filename:
         plt.savefig(filename)
     else:

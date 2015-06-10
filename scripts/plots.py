@@ -2,6 +2,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
+
+from matplotlib import rc, rcParams
+rc('font',**{'family':'serif', 'weight':'normal'})
+## for Palatino and other serif fonts use:
+#rc('font',**{'family':'serif','serif':['Palatino']})
+rc('text', usetex=True)
+rcParams['text.latex.preamble'] = [r'\boldmath']
+
 import os # get correct path for datafiles when called from another directory
 import sys # PATH manipulation to ensure sulfur module is available
 from itertools import izip
@@ -23,6 +31,12 @@ ordered_species = ['S2','S3_ring','S3_bent','S4_buckled','S4_eclipsed', 'S4_C2h'
 data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 
 species_colors = {'S2':'#222222','S3_ring':'#a6cee3','S3_bent':'#1f78b4','S4_buckled':'#b2df8a','S4_eclipsed':'#33a02c','S5_ring':'#fb9a99','S6_stack_S3':'#e31a1c','S6_branched':'#fdbf6f','S6_buckled':'#ff7f00','S6_chain_63':'#cab2d6','S7_ring':'#6a3d9a','S7_branched':'#bbbb55','S4_C2h':'#b04040','S8':'#b15928'}
+
+# LaTeX formatted names for species. Keys correspond to database keys
+species_names = {'S2':r'S$_2$ (D$_{\infty \mathrm{h}}$)','S3_ring':r'S$_3$ (D$_{3\mathrm{h}}$)','S3_bent':r'S$_3$ (C$_{2\mathrm{v}}$)','S4_buckled':r'S$_4$ (D$_{2\mathrm{d}}$)','S4_eclipsed':r'S$_4$ (C$_{2\mathrm{v}}$)','S4_C2h':r'S$_4$ (C$_{2\mathrm{h}}$)','S5_ring':r'S$_5$ (C$_\mathrm{s}$)','S6_stack_S3':r'S$_6$ (D$_{3 \mathrm{h}}$)','S6_branched':r'S$_6$ (C$_1$, branched)','S6_buckled':r'S$_6$ (C$_{2\mathrm{v}}$)','S6_chain_63':r'S$_6$ (C$_1$, chain)','S7_ring':r'S$_7$ (C$_{\mathrm{s}}$)','S7_branched':r'S$_7$ (C$_\mathrm{s}$, branched)','S8':r'S$_8$ (D$_{4\mathrm{d}}$)'}
+
+# Alternative / LaTeX escaped names for DFT functionals. May also be useful for changing capitalisation, LDA vs LSDA etc.
+functional_names = {'PBE0_scaled':r'PBE0 (scaled)'} 
 
 def plot_T_composition(T, n, labels, title, filename=False):
     axis=plt.gca()
@@ -79,7 +93,7 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
             ax.axes.set_xlim([200,1500])
             
             if row == 0:
-                ax.set_title("$10^{" + "{0:d}".format(int(np.log10(p))) + "}$ Pa")
+                ax.set_title("$10^{" + "{0:d}".format(int(np.log10(p))) + "}$ Pa", fontweight='normal')
                 ax.set_xticklabels('',visible=False)
             elif row != len(P) -1:
                 ax.set_xticklabels('',visible=False)
@@ -87,7 +101,11 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
                 ax.axes.set_xlabel('Temperature / K')
 
             if col == 0:
-                ax.axes.set_ylabel(functional)
+                if functional in functional_names:
+                    functional_label = functional_names[functional]
+                else:
+                    functional_label = functional
+                ax.axes.set_ylabel(functional_label)
                 ax.set_yticks([0,1])
                 ax.set_yticklabels(['0','1'])
                 ml = MultipleLocator(0.2)
@@ -97,7 +115,8 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
                 ax.set_yticklabels('',visible=False)
                 ax.tick_params('both',length=tick_length,width=tick_width, which='both')
 
-    plt.legend([plt.Line2D((0,1),(0,0), color=species_colors[species]) for species in ordered_species], ordered_species, ncol=4, loc='center', bbox_to_anchor=(0.5,0.1), bbox_transform=fig.transFigure, fontsize=11)
+    plt.legend([plt.Line2D((0,1),(0,0), color=species_colors[species]) for species in ordered_species],
+               [species_names[species] for species in ordered_species], ncol=4, loc='center', bbox_to_anchor=(0.5,0.1), bbox_transform=fig.transFigure, fontsize=11)
     if filename:
         plt.savefig(filename)
     else:
@@ -286,7 +305,7 @@ def main():
     # data = compute_data(T=T, functionals=['PBE0_scaled'])
     # plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
 
-    T = np.arange(50,1500,50)
+    T = np.arange(50,1500,10)
     P = [10**x for x in (1,5,7)]
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
     tabulate_data(data,T,P, path=data_directory)
@@ -297,7 +316,6 @@ def main():
                 
 if __name__ == '__main__':
     main()
-
 
 
 

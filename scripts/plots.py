@@ -76,7 +76,7 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
     from matplotlib import gridspec
 
     fig = plt.figure(figsize =  (17.2 / 2.54, 17 / 2.54))
-    gs = gridspec.GridSpec(len(P),len(functionals), bottom=0.25)
+    gs = gridspec.GridSpec(len(functionals), len(P), bottom=0.25)
 
     tick_length = 4
     tick_width = 0.5
@@ -95,7 +95,7 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
             if row == 0:
                 ax.set_title("$10^{" + "{0:d}".format(int(np.log10(p))) + "}$ Pa", fontweight='normal')
                 ax.set_xticklabels('',visible=False)
-            elif row != len(P) -1:
+            elif row != len(functionals) -1:
                 ax.set_xticklabels('',visible=False)
             else:
                 ax.axes.set_xlabel('Temperature / K')
@@ -311,12 +311,11 @@ def main():
     tabulate_data(data,T,P, path=data_directory)
     
     plot_composition(T, P, data, functionals=('LDA','PBEsol','PBE0_scaled'), filename='composition.pdf')
+    plot_composition(T, P, data, functionals=data_sets.keys(), filename='all_compositions.pdf')
     # plot_mu_functionals(data, T, P, filename=False, compact=False)  
 
                 
 if __name__ == '__main__':
     main()
-
-
 
 

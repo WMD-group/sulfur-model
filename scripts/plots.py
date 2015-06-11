@@ -218,7 +218,7 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
         eqm_data.update({functional:Calc_n_mu(n, mu, labels)})                        
     return eqm_data
 
-def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, filename=False, compact=False):
+def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, mu_range=False, filename=False, compact=False):
     """
     Plot free energy against T for a range of datasets.
 
@@ -231,7 +231,8 @@ def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, filename=
         T: Iterable of temperatures in K, corresponding to T ranges in data
         P: Iterable of P values in Pa corresponding to data. Used for labelling: all pressures will be plotted
         functionals: iterable containing keys of data to use. If False, all functionals in 'data_sets' will be plotted.
-        T_range: 2-tuple in K of temperature range to display.
+        T_range: 2-tuple in K of temperature range to display. If False, use range of T.
+        mu_range: 2-tuple in kJ mol-1 of mu range to display. If False, use matplotlib default
         filename: Filename for plot output. If False (default), print to screen instead.
         compact: Boolean, setting width to 8cm for publication if True
     """
@@ -301,6 +302,8 @@ def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, filename=
         ax.axes.set_title('P = {0} bar'.format(p * 1E-5))
         ax.axes.set_xlabel('Temperature / K')
 
+    if mu_range:
+        ax.axes.set_ylim(mu_range)
     
     plt.legend(ncol=4, loc='center', bbox_to_anchor=(0.5,bottom/3.), bbox_transform=fig.transFigure, fontsize=11)
     if filename:
@@ -452,7 +455,7 @@ def main():
     
     #plot_composition(T, P, data, functionals=('LDA','PBEsol','PBE0_scaled'), filename='composition.pdf')
     #plot_composition(T, P, data, functionals=data_sets.keys(), filename='all_compositions.pdf')
-    plot_mu_functionals(data, T, P, filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
+    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
 
     plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
     # "Experimentalist-friendly" plot around annealing conditions in degrees C

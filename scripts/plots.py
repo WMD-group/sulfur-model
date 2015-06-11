@@ -218,7 +218,7 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
         eqm_data.update({functional:Calc_n_mu(n, mu, labels)})                        
     return eqm_data
 
-def plot_mu_functionals(data, T, P, functionals=False, filename=False, compact=False):
+def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, filename=False, compact=False):
     """
     Plot free energy against T for a range of datasets.
 
@@ -231,9 +231,32 @@ def plot_mu_functionals(data, T, P, functionals=False, filename=False, compact=F
         T: Iterable of temperatures in K, corresponding to T ranges in data
         P: Iterable of P values in Pa corresponding to data. Used for labelling: all pressures will be plotted
         functionals: iterable containing keys of data to use. If False, all functionals in 'data_sets' will be plotted.
+        T_range: 2-tuple in K of temperature range to display.
         filename: Filename for plot output. If False (default), print to screen instead.
         compact: Boolean, setting width to 8cm for publication if True
     """
+
+    ########## Literature data for S2, S8 ##########
+
+    s2_data = np.genfromtxt(data_directory + '/S2.dat', skip_header=2)
+    s8_data = np.genfromtxt(data_directory + '/S8.dat', skip_header=2)
+
+    # Fourth column contains -(G-H(Tr))/T in J/molK
+    T_s2 = s2_data[:,0]
+    DG_s2 = s2_data[:,3] * T_s2 * -1E-3
+    mu_s2 = (DG_s2 + 128.600)/2.
+
+    T_s8 = s8_data[:,0]
+    DG_s8 = s8_data[:,3] * T_s8 * -1E-3
+    mu_s8 = (DG_s8 + 101.416)/8.
+
+    R = 8.314 * 1E-3 # Gas constant in kJ mol-1 K-1
+
+
+    ######## Plotting ########
+
+    if not T_range:
+        T_range = (min(T), max(T))
 
     if functionals == False:
         functionals = data_sets.keys()
@@ -241,27 +264,50 @@ def plot_mu_functionals(data, T, P, functionals=False, filename=False, compact=F
     if compact:
         fig_dimensions = (8 / 2.54, 8 / 2.54)
     else:
-        fig_dimensions = (17.2 / 2.54, 12 / 2.54)
+        fig_dimensions = (17.2 / 2.54, 8 / 2.54)
+
+    bottom = 0.4
+    fig = plt.figure(figsize = fig_dimensions)
+    gs = gridspec.GridSpec(1,len(P), bottom=bottom)
         
     for i_p, p in enumerate(P):
 
-        plt.figure(figsize = fig_dimensions)
+        if i_p == 0:
+            ax = plt.subplot(gs[i_p])
+            left_ax = ax
+            ax.axes.set_ylabel('$\mu_S$ / kJ mol$^{-1}$')
+        else:
+            ax = plt.subplot(gs[i_p], sharey=left_ax)
 
         for functional in functionals:
+            if functional in functional_names:
+                functional_name = functional_names[functional]
+            else:
+                functional_name = functional
             mu_kJmol = np.array(data[functional].mu[i_p]) * 1E-3
-            plt.plot(T,mu_kJmol, label=functional)
-        ax = plt.gca()
-        ax.set_xticks( np.arange(0,max(T)+1,500) )
-        plt.legend(loc='best', fontsize='small')
-        plt.title('P = {0} bar'.format(p * 1E-5))
-        plt.xlabel('Temperature / K')
-        plt.ylabel('$\mu_S$ / kJ mol$^{-1}$')
-        plt.tight_layout()
-        if filename:
-            plt.savefig('{0}_{1}.pdf'.format(filename,p*1E-5))
-        else:
-            plt.show()
-        plt.close()
+            ax.plot(T,mu_kJmol, label=functional_name)
+
+        # Plot literature data with pressure correction
+        ax.plot(T_s2, mu_s2 + R*T_s2*np.log(p/1E5)/2, label=r'S$_2$ (lit.)', linestyle=':')
+        ax.plot(T_s8, mu_s8 + R*T_s8*np.log(p/1E5)/8, label=r'S$_8$ (lit.)', linestyle=':')
+
+        if i_p > 0:
+            plt.setp(ax.get_yticklabels(), visible=False) # I don't understand why ax.set_yticklabels doesn't work here, but it wipes out the first column too.
+
+        ml = MultipleLocator(400)
+        ax.xaxis.set_major_locator(ml)
+
+        ax.axes.set_xlim(T_range)
+        ax.axes.set_title('P = {0} bar'.format(p * 1E-5))
+        ax.axes.set_xlabel('Temperature / K')
+
+    
+    plt.legend(ncol=4, loc='center', bbox_to_anchor=(0.5,bottom/3.), bbox_transform=fig.transFigure, fontsize=11)
+    if filename:
+        plt.savefig(filename)
+    else:
+        plt.show()
+
 
 def plot_mu_contributions( T, P, data, functionals, T_range=(200,1500), filename=False, figsize=(17.2 / 2.54, 17 / 2.54), bottom=0.4, T_units='K', T_increment=400, mu_range=False):
     """
@@ -406,11 +452,11 @@ def main():
     
     #plot_composition(T, P, data, functionals=('LDA','PBEsol','PBE0_scaled'), filename='composition.pdf')
     #plot_composition(T, P, data, functionals=data_sets.keys(), filename='all_compositions.pdf')
-    # plot_mu_functionals(data, T, P, filename=False, compact=False)  
+    plot_mu_functionals(data, T, P, filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
+
     plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
     # "Experimentalist-friendly" plot around annealing conditions in degrees C
     plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
                 
 if __name__ == '__main__':
     main()
-

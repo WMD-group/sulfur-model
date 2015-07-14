@@ -58,7 +58,7 @@ def plot_T_composition(T, n, labels, title, filename=False):
         plt.show()
     plt.close()
 
-def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
+def plot_composition(T, P, data, functionals=False, filename=False):
     """
     Plot composition vs T over a range of pressures and DFT functionals in a neat tiled array
 
@@ -75,6 +75,9 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
 
     """
 
+    if functionals == False:
+        functionals = data.keys()
+
     fig = plt.figure(figsize =  (17.2 / 2.54, 17 / 2.54))
     gs = gridspec.GridSpec(len(functionals), len(P), bottom=0.25)
 
@@ -86,7 +89,8 @@ def plot_composition(T, P, data, functionals=data_sets.keys(), filename=False):
         for col, p in enumerate(P):
             ax = plt.subplot(gs[row,col])
             ax.set_color_cycle(color_cycle)
-            ax.plot(T, data[functional].n[col][:])
+            for i, species in enumerate(data[functional].labels):
+                ax.plot(T, [data[functional].n[col][t_index][i] for t_index in range(len(T))])
             ml = MultipleLocator(400)
             ax.xaxis.set_major_locator(ml)
             ax.axes.set_ylim([0,1])
@@ -406,7 +410,7 @@ def plot_mu_contributions( T, P, data, functionals, T_range=(200,1500), filename
         plt.show()
     
 
-def tabulate_data(data,T,P,path=''):
+def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
     """
     Write tables of composition and free energy
     
@@ -419,6 +423,9 @@ def tabulate_data(data,T,P,path=''):
             T: Iterable containing temperature values in K corresponding to data
             P: Iterable containing pressure values in Pa corresponding to data
             path: directory for csv files to be written in
+            logP: Boolean
+            formatting: iterable of strings. 'logP' for log pressures. Set units with
+                        'Jmol-1'|'Jmol'|'J/mol'|'kJmol-1'|'kJmol'|'kJ/mol'. Reduce decimal precision with 'short'.
     """
 
     import string
@@ -426,40 +433,71 @@ def tabulate_data(data,T,P,path=''):
         if path[-1] != '/':
             path = path + '/'
 
+    if formatting and any([x in formatting for x in ('Jmol-1','Jmol','J/mol')]):
+        energy_units = 'J mol-1'
+        energy_units_factor = 1.0
+    elif formatting and any([x in formatting for x in ('kJmol-1','kJmol','kJ/mol')]):
+        energy_units = 'kJ mol-1'
+        energy_units_factor = 1.0e-3
+    else:
+        raise Exception("no valid units in format string {0}".format(formatting))
+
+    if 'short' in formatting:
+        mu_string='{0:1.2f}'
+    else:
+        mu_string='{0:1.4f}'
     for functional in data.keys():
         with open(path + 'mu_{0}.csv'.format(functional.lower()), 'w') as f:
-            linelist = ['# T/K,' + string.join(['mu ({0} Pa) / J mol-1'.format(p) for p in P],',') + '\n']
+            if 'logP' in formatting:
+                linelist = ['# T/K,' + string.join(['mu (10^{0:.2f} Pa) / {1}'.format(np.log10(p), energy_units) for p in P],',') + '\n']
+            else:
+                linelist = ['# T/K,' + string.join(['mu ({0} Pa) / {1}'.format(p, energy_units) for p in P],',') + '\n']
             for t_index, t in enumerate(T):
-                linelist.append( '{0},'.format(t) + string.join(['{0:1.4f}'.format(mu_p[t_index]) for mu_p in data[functional].mu],',') + '\n')
+                linelist.append( '{0},'.format(t) + string.join([mu_string.format(mu_p[t_index]*energy_units_factor) for mu_p in data[functional].mu],',') + '\n')
             f.writelines(linelist)
 
     for functional in data.keys():
         with open(path + 'n_{0}.csv'.format(functional.lower()), 'w') as f:
             for p_index, p in enumerate(P):
-                linelist = ['# P = {0} Pa\n'.format(p)]
+                if 'logP' in formatting:
+                    linelist = ['# P = 10^{0:.2f} Pa\n'.format(np.log10(p))]
+                else:
+                    linelist = ['# P = {0} Pa\n'.format(p)]
                 linelist.append('# T/K, ' + string.join(['x({0})'.format(x) for x in data[functional].labels],',') + '\n')
                 for t_index, t in enumerate(T):
                     linelist.append('{0},'.format(t) + string.join(['{0:1.4f}'.format(n) for n in data[functional].n[p_index][t_index]],',') + '\n')
                 f.writelines(linelist)
         
 def main():
-    # T = np.linspace(50,1500,50)
-    # P = 1E5
-    # data = compute_data(T=T, functionals=['PBE0_scaled'])
-    # plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
+    ### Begin by plotting composition breakdown with PBE0_scaled @ 1 bar ###
+
+    T = np.linspace(50,1500,50)
+    P = [10**x for x in (1,5,7)]
+    data = compute_data(T=T, P=P, functionals=data_sets.keys())
+    #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
+    plot_composition(T,P, data, filename='composition.pdf')
+
+    ### Plots over 3 pressures: mu depending on T, calculation method; mu with
+    ### component contributions; mu with component contributions over smaller T
+    ### range
 
     T = np.arange(50,1500,100)
-    P = [10**x for x in (1,5,7)]
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory)
     
-    #plot_composition(T, P, data, functionals=('LDA','PBEsol','PBE0_scaled'), filename='composition.pdf')
-    #plot_composition(T, P, data, functionals=data_sets.keys(), filename='all_compositions.pdf')
     plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
 
     plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
-    # "Experimentalist-friendly" plot around annealing conditions in degrees C
+
     plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
-                
+
+    ### Tabulate data over log pressure range ###
+  
+    T = np.arange(100,1500,50)
+    #    P = [10**x for x in (1,5,7)]
+    P = np.power(10,np.linspace(1,7,10))
+    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
+
+    
 if __name__ == '__main__':
     main()

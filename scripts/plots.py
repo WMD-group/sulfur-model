@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import os # get correct path for datafiles when called from another directory
 from itertools import izip
 from collections import namedtuple
-from sulfur.core import get_potentials, unpack_data, reference_energy, solve_composition
+from scipy.special import erf, erfc
 
 script_directory = os.path.dirname(__file__)
 # Append a trailing slash to make coherent directory name - this would select the
@@ -15,6 +15,39 @@ data_directory = script_directory +  '../data/'
 
 data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 
+
+# Add module to path
+import sys
+sys.path.append(script_directory+'../')
+
+from sulfur.core import get_potentials, unpack_data, reference_energy, solve_composition
+
+import scipy.constants as constants
+eV2Jmol = constants.physical_constants['electron volt-joule relationship'][0] * constants.N_A
+k = constants.physical_constants['Boltzmann constant in eV/K'][0]
+
+### Parameters for PBE0_scaled fits ###
+S8_poly = [ -3.80993101e-13,   1.80778884e-09,  -4.01150741e-06,
+        -2.45657416e-03,   7.62018747e-01]
+S2_poly = [ -8.65418878e-14,   4.00096901e-10,  -8.56622340e-07,
+        -1.84833136e-03,   1.20725661e+00]
+gaussian_height_poly = [   49.92188405,   -96.05901548,  1275.83961616]
+T_tr_poly = [   1.82766941,   -8.29481895,   72.7179064 ,  507.70392149]
+gaussian_b = 10
+gaussian_c = 80
+
+def mu_S8_fit(T,P):
+    return np.polyval(S8_poly,T) + k*T*np.log(P/1E5)
+def mu_S2_fit(T,P):
+    return np.polyval(S2_poly,T) + k*T*np.log(P/1E5)
+def T_tr(P):
+    return np.polyval(T_tr_poly, np.log10(P))
+def mu_fit(T,P):
+    t_tr = T_tr(P)
+    mu_S8_contrib = mu_S8_fit(T,P)*erfc((T-t_tr)/gaussian_b) * (1./(2.*8.)) * eV2Jmol
+    mu_S2_contrib = mu_S2_fit(T,P)*(erf((T-t_tr)/gaussian_b)+1) * (1./(2.*2.)) * eV2Jmol
+    gaussian_contrib = -(np.polyval(gaussian_height_poly, np.log10(P)))*np.exp(-(T-(t_tr-gaussian_b))**2/(2.*gaussian_c**2))
+    return mu_S8_contrib + mu_S2_contrib + gaussian_contrib
 
 def plot_T_composition(T, n, labels, title, filename=False):
     axis=plt.gca()
@@ -210,22 +243,102 @@ def tabulate_data(data,T,P,path=''):
                 for t_index, t in enumerate(T):
                     linelist.append('{0},'.format(t) + string.join(['{0:1.4f}'.format(n) for n in data[functional].n[p_index][t_index]],',') + '\n')
                 f.writelines(linelist)
-        
+
+def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False):
+    """Generate a surface plot showing recommended S models. Can be slow!
+
+    Arguments:
+        functional: id of dataset used. PBE0_scaled is strongly recommended as it has good agreement with experimental data.
+        T_range: Tuple containing T range in K
+        P_range: Tuple containing (log10(Pmin), log10(Pmax))
+        resolution: Number of points on x and y axis. Note that a full free energy minimisation is carried out at each point, so print-ready resolutions will take some time to compute.
+        tolerance: Error threshold for transition region in Jmol-1
+        parameterised: Boolean. If True, use parameterised fit (polynomials, erf and gaussian). If False, solve equilibrium at all points (slow!)
+        filename: String containing output file. If False, print to screen.
+    
+
+    """
+    import ase.thermochemistry
+    import ase.db
+
+    T = np.linspace(min(T_range), max(T_range), resolution)
+    P = 10**np.linspace(min(P_range),max(P_range),resolution)[:, np.newaxis]
+
+    if parameterised:
+        mu_mixture = mu_fit(T,P)
+        mu_S2 = mu_S2_fit(T,P) * eV2Jmol / 2.
+        mu_S8 = mu_S8_fit(T,P) * eV2Jmol / 8.
+    else:
+        data = compute_data(T=T, P=P, functionals=[functional])
+        mu_mixture = np.array(data[functional].mu)
+        db_file = data_directory+data_sets[functional]
+        labels, thermo, a = unpack_data(db_file,ref_energy=reference_energy(db_file, units='eV'))
+        S2_thermo = thermo[labels.index('S2')]
+        S8_thermo = thermo[labels.index('S8')]
+
+        v_get_gibbs_energy=np.vectorize(ase.thermochemistry.IdealGasThermo.get_gibbs_energy)
+        mu_S2 = v_get_gibbs_energy(S2_thermo,T, P, verbose=False) * eV2Jmol / 2.
+        mu_S8 = v_get_gibbs_energy(S8_thermo,T, P, verbose=False) * eV2Jmol / 8.
+
+    plt.figure()
+    CS = plt.contour(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000])
+    plt.clabel(CS, inline=1, fontsize=10)
+    plt.title('Error')
+
+    if filename:
+        plt.savefig(filename)
+    else:
+        plt.show()
+
+    # plt.figure()
+    # CS = plt.contour(T,np.log10(P).flatten(),abs(mu_S8 - mu_mixture))
+    # plt.clabel(CS, inline=1, fontsize=10)
+    # plt.title('Error of S8')
+    # plt.show()
+
+def check_fit():
+    """Sanity check for polynomial fitting"""
+    import ase.thermochemistry
+    import ase.db
+
+    T = np.linspace(100,1000,10)
+    P = np.array([1E3])
+    data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
+    mu_mixture = np.array(data['PBE0_scaled'].mu)
+    db_file = data_directory+data_sets['PBE0_scaled']
+    labels, thermo, a = unpack_data(db_file,ref_energy=reference_energy(db_file, units='eV'))
+    S2_thermo = thermo[labels.index('S2')]
+    S8_thermo = thermo[labels.index('S8')]
+
+    v_get_gibbs_energy=np.vectorize(ase.thermochemistry.IdealGasThermo.get_gibbs_energy)
+    mu_S2 = v_get_gibbs_energy(S2_thermo,T, P, verbose=False) * eV2Jmol / 2.
+    mu_S8 = v_get_gibbs_energy(S8_thermo,T, P, verbose=False) * eV2Jmol / 8.
+
+    plt.plot(T, mu_mixture.transpose(), 'bx', ms=20, label="Mixture (solver)")
+    plt.plot(T, mu_fit(T,P),'r+', ms=20, label="Mixture (fit)")
+    plt.plot(T, mu_S2, 'go', label=r"S$_2$ (model)")
+    plt.plot(T, mu_S2_fit(T,P) * eV2Jmol/2.,'k^', label=r"S$_2$ (fit)")
+    plt.plot(T, mu_S8_fit(T,P) * eV2Jmol/8., 'k*', label=r"S$_8$ (fit)")
+    plt.legend()
+    plt.show()
+                                
 def main():
-    T = np.linspace(50,1500,50)
-    P = 1E5
+    # check_fit()
+    # T = np.linspace(50,1500,50)
+    # P = 1E5
 
-    data = compute_data(T=T, functionals=['PBE0_scaled'])
-    plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
+    # data = compute_data(T=T, functionals=['PBE0_scaled'])
+    # plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename=False)
 
 
-    T = np.arange(50,1500,50)
-    P = [10**x for x in range(1,7)]
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path='data')
+    # T = np.arange(50,1500,5)
+    # P = [10**x for x in range(1,7)]
+    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    # tabulate_data(data,T,P, path='data')
 
-    plot_mu_functionals(data, T, P, filename=False, compact=False)
+    # plot_mu_functionals(data, T, P, filename=False, compact=False)
 
+    # plot_surface(resolution=200, parameterised=False, filename='tmp.pdf')
                 
 if __name__ == '__main__':
     main()

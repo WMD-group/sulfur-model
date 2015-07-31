@@ -245,13 +245,24 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
         n = []
         mu = []
         for p in P:
-            n_p, mu_p = [], []
-            for t in T:
-                n_p_T, mu_p_T = solve_composition(a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
-                n_p.append([n_i*a_i for n_i,a_i in izip(n_p_T,a)]) # Convert to atom frac
-                mu_p.append(mu_p_T)
+            # n_p, mu_p = [], []
+            # for t in T:
+            #     n_p_T, mu_p_T = solve_composition(a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
+            #     n_p.append([n_i*a_i for n_i,a_i in izip(n_p_T,a)]) # Convert to atom frac
+            #     mu_p.append(mu_p_T)
+            # n.append(n_p)
+            # mu.append(mu_p)
+
+            n_p_mu_p_double = [
+                ([n_i*a_i for n_i,a_i in izip(n_p_T,a)], mu_p_T) for
+                (n_p_T, mu_p_T) in (
+                    solve_composition(a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
+                    for t in T)
+                ]
+            n_p, mu_p = [x[0] for x in n_p_mu_p_double], [x[1] for x in n_p_mu_p_double]
             n.append(n_p)
             mu.append(mu_p)
+            
         eqm_data.update({functional:Calc_n_mu(n, mu, labels)})                        
     return eqm_data
 
@@ -528,14 +539,16 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
     else:
         data = compute_data(T=T, P=P, functionals=[functional])
         mu_mixture = np.array(data[functional].mu)
-        db_file = data_directory+data_sets[functional]
+        db_file = data_directory+'/'+data_sets[functional]
         labels, thermo, a = unpack_data(db_file,ref_energy=reference_energy(db_file, units='eV'))
         S2_thermo = thermo[labels.index('S2')]
         S8_thermo = thermo[labels.index('S8')]
 
-        v_get_gibbs_energy=np.vectorize(ase.thermochemistry.IdealGasThermo.get_gibbs_energy)
-        mu_S2 = v_get_gibbs_energy(S2_thermo,T, P, verbose=False) * eV2Jmol / 2.
-        mu_S8 = v_get_gibbs_energy(S8_thermo,T, P, verbose=False) * eV2Jmol / 8.
+        def get_gibbs_wrapper(thermo, T, P):
+            return(ase.thermochemistry.IdealGasThermo.get_gibbs_energy(thermo,T,P,verbose=False))
+        v_get_gibbs_energy=np.vectorize(get_gibbs_wrapper)
+        mu_S2 = v_get_gibbs_energy(S2_thermo,T, P) * eV2Jmol / 2.
+        mu_S8 = v_get_gibbs_energy(S8_thermo,T, P) * eV2Jmol / 8.
 
     plt.figure()
     CS = plt.contour(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000])
@@ -582,36 +595,36 @@ def check_fit():
 def main():
     ### Begin by plotting composition breakdown with PBE0_scaled @ 1 bar ###
 
-    T = np.linspace(50,1500,50)
-    P = [10**x for x in (1,5,7)]
-    data = compute_data(T=T, P=P, functionals=data_sets.keys())
-    #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
-    plot_composition(T,P, data, filename='composition.pdf')
+    # T = np.linspace(50,1500,50)
+    # P = [10**x for x in (1,5,7)]
+    # data = compute_data(T=T, P=P, functionals=data_sets.keys())
+    # #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
+    # plot_composition(T,P, data, filename='composition.pdf')
 
-    ### Plots over 3 pressures: mu depending on T, calculation method; mu with
-    ### component contributions; mu with component contributions over smaller T
-    ### range
+    # ### Plots over 3 pressures: mu depending on T, calculation method; mu with
+    # ### component contributions; mu with component contributions over smaller T
+    # ### range
 
-    T = np.arange(50,1500,100)
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    # T = np.arange(50,1500,100)
+    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
     
-    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
+    # plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
 
-    plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
+    # plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
 
-    plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
+    # plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
 
-    ### Tabulate data over log pressure range ###
+    # ### Tabulate data over log pressure range ###
   
-    T = np.arange(100,1500,50)
-    #    P = [10**x for x in (1,5,7)]
-    P = np.power(10,np.linspace(1,7,10))
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
+    # T = np.arange(100,1500,50)
+    # #    P = [10**x for x in (1,5,7)]
+    # P = np.power(10,np.linspace(1,7,10))
+    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    # tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
 
     # plot_mu_functionals(data, T, P, filename=False, compact=False)
 
-    # plot_surface(resolution=200, parameterised=False, filename='tmp.pdf')
+    plot_surface(resolution=100, parameterised=False, filename='surface.pdf')
                 
 if __name__ == '__main__':
     main()

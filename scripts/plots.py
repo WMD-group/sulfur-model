@@ -43,7 +43,7 @@ functional_names = {'PBE0_scaled':r'PBE0 (scaled)'}
 import sys
 sys.path.append(script_directory+'../')
 
-from sulfur.core import get_potentials, unpack_data, reference_energy, solve_composition
+from sulfur import get_potentials, unpack_data, reference_energy, solve_composition
 
 import scipy.constants as constants
 eV2Jmol = constants.physical_constants['electron volt-joule relationship'][0] * constants.N_A
@@ -552,8 +552,16 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
 
     plt.figure()
     CS = plt.contour(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000])
-    plt.clabel(CS, inline=1, fontsize=10)
-    plt.title('Error')
+    plt.contourf(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000,1e10], colors=[(0.7,0.7,1.00)])
+    # plt.clabel(CS, inline=1, fontsize=10)  # Contour line labels
+
+    plt.plot(T_tr(P),np.log10(P),'k--', linewidth=3)
+    plt.xlim(min(T_range),max(T_range))
+    plt.text(500, 4, r'S$_{8}$')
+    plt.text(1000, 4, r'S$_{2}$')
+
+    plt.xlabel('Temperature / K')
+    plt.ylabel('$\log_{10}(P)$')
 
     if filename:
         plt.savefig(filename)
@@ -624,7 +632,7 @@ def main():
 
     # plot_mu_functionals(data, T, P, filename=False, compact=False)
 
-    plot_surface(resolution=100, parameterised=False, filename='surface.pdf')
+    plot_surface(resolution=200, parameterised=False, filename='surface.pdf')
                 
 if __name__ == '__main__':
     main()

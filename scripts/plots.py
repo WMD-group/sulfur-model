@@ -526,6 +526,7 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
     """
     import ase.thermochemistry
     import ase.db
+    import sulfur.literature
 
     T = np.linspace(min(T_range), max(T_range), resolution)
     P = 10**np.linspace(min(P_range),max(P_range),resolution)[:, np.newaxis]
@@ -548,14 +549,29 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
         mu_S2 = v_get_gibbs_energy(S2_thermo,T, P) * eV2Jmol / 2.
         mu_S8 = v_get_gibbs_energy(S8_thermo,T, P) * eV2Jmol / 8.
 
+    # "Pressure" fixed for alpha-S to form incompressible solid model. PV term is neglected
+    mu_alpha = sulfur.literature.free_energy(T, data_directory + '/S-alpha.dat', P=1e5)
+    # Reference energy added to liquid phase free energy
+    mu_liquid = sulfur.literature.free_energy(T, data_directory + '/S-liquid.dat', P=1e5) + 1854.
+        
     fig = plt.figure(figsize = (8.3/2.54, 8.3/2.54))
     CS = plt.contour(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000])
     plt.contourf(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000,1e10], colors=[(0.7,0.7,1.00)])
     # plt.clabel(CS, inline=1, fontsize=10)  # Contour line labels
 
+    plt.contour(T,np.log10(P).flatten(), mu_S8 - mu_liquid, [0], color='k')
+    plt.text(400, 4, r'$\alpha$-S')
+
+    # Data for liquid phase. Discontinuity in Cp at 432.020 was
+    # disregarded from data set for compatibility with fitting
+    # routine.
+    plt.contour(T,np.log10(P).flatten(), mu_liquid - mu_alpha * np.ones(P.shape), [0], color='r')
+    plt.text(400, 4, r'$\alpha$-S')
+
+        
     plt.plot(T_tr(P),np.log10(P),'k--', linewidth=3)
     plt.xlim(min(T_range),max(T_range))
-    plt.text(500, 4, r'S$_{8}$')
+    plt.text(600, 4, r'S$_{8}$')
     plt.text(1000, 4, r'S$_{2}$')
 
     plt.xlabel('Temperature / K')
@@ -569,13 +585,14 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
         plt.savefig(filename)
     else:
         plt.show()
-
+        
     # plt.figure()
     # CS = plt.contour(T,np.log10(P).flatten(),abs(mu_S8 - mu_mixture))
     # plt.clabel(CS, inline=1, fontsize=10)
     # plt.title('Error of S8')
     # plt.show()
-
+    
+    
 def check_fit():
     """Sanity check for polynomial fitting"""
     import ase.thermochemistry
@@ -634,7 +651,7 @@ def main():
 
     # plot_mu_functionals(data, T, P, filename=False, compact=False)
 
-    plot_surface(resolution=200, parameterised=False, filename='surface.pdf')
+    plot_surface(resolution=10, parameterised=False, filename='surface.pdf')
                 
 if __name__ == '__main__':
     main()

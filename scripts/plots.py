@@ -43,8 +43,6 @@ functional_names = {'PBE0_scaled':r'PBE0 (scaled)'}
 import sys
 sys.path.append(script_directory+'../')
 
-from sulfur import get_potentials, unpack_data, reference_energy, solve_composition
-
 import scipy.constants as constants
 eV2Jmol = constants.physical_constants['electron volt-joule relationship'][0] * constants.N_A
 k = constants.physical_constants['Boltzmann constant in eV/K'][0]
@@ -550,7 +548,7 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
         mu_S2 = v_get_gibbs_energy(S2_thermo,T, P) * eV2Jmol / 2.
         mu_S8 = v_get_gibbs_energy(S8_thermo,T, P) * eV2Jmol / 8.
 
-    plt.figure()
+    fig = plt.figure(figsize = (8.3/2.54, 8.3/2.54))
     CS = plt.contour(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000])
     plt.contourf(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000,1e10], colors=[(0.7,0.7,1.00)])
     # plt.clabel(CS, inline=1, fontsize=10)  # Contour line labels
@@ -562,6 +560,10 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
 
     plt.xlabel('Temperature / K')
     plt.ylabel('$\log_{10}(P)$')
+
+    fig.subplots_adjust(bottom=0.15, left=0.15)
+    ax = plt.gca()
+    ax.xaxis.set_major_locator(MultipleLocator(base=200))
 
     if filename:
         plt.savefig(filename)

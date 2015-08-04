@@ -1,2 +1,3 @@
 # Ignore plots. These are generated automatically with scripts.
 # This file is used to ensure a legal directory for plot output exists in the git repository.
+*

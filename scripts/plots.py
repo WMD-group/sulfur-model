@@ -605,36 +605,41 @@ def check_fit():
 def main():
     ### Begin by plotting composition breakdown with PBE0_scaled @ 1 bar ###
 
-    # T = np.linspace(50,1500,50)
-    # P = [10**x for x in (1,5,7)]
-    # data = compute_data(T=T, P=P, functionals=data_sets.keys())
-    # #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
-    # plot_composition(T,P, data, filename='composition.pdf')
+    T = np.linspace(50,1500,50)
+    P = [10**x for x in (1,5,7)]
+    data = compute_data(T=T, P=P, functionals=data_sets.keys())
+    #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
+    plot_composition(T,P, data, filename='plots/composition.pdf')
 
-    # ### Plots over 3 pressures: mu depending on T, calculation method; mu with
-    # ### component contributions; mu with component contributions over smaller T
-    # ### range
+    ### Plots over 3 pressures: mu depending on T, calculation method; mu with
+    ### component contributions; mu with component contributions over smaller T
+    ### range
 
-    # T = np.arange(50,1500,100)
-    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    T = np.arange(50,1500,100)
+    data = compute_data(T=T, P=P, functionals = data_sets.keys())
     
-    # plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
+    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
 
-    # plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
+    plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='plots/mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
 
-    # plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
+    plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='plots/mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
 
-    # ### Tabulate data over log pressure range ###
-  
-    # T = np.arange(100,1500,50)
-    # #    P = [10**x for x in (1,5,7)]
-    # P = np.power(10,np.linspace(1,7,10))
-    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    # tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
+    ### Tabulate data over log pressure range ###
 
-    # plot_mu_functionals(data, T, P, filename=False, compact=False)
+    # Compact table
+    
+    T = np.arange(400,1500,50)
+    P = np.power(10,np.linspace(1,7,10))
+    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
 
-    plot_surface(resolution=200, parameterised=False, filename='surface.pdf')
+    # Larger table
+    T = np.arange(400,1500,10)
+    P = np.power(10,np.linspace(1,7,15))
+    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
+
+    plot_surface(resolution=20, parameterised=False, filename='plots/surface.pdf')
                 
 if __name__ == '__main__':
     main()

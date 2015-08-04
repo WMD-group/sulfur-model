@@ -1,8 +1,15 @@
 #! /usr/bin/env python
+import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 from matplotlib import gridspec
+from scipy.special import erf, erfc
+
+import ase.thermochemistry
+import ase.db
+
+from itertools import cycle
 
 from matplotlib import rc, rcParams
 rc('font',**{'family':'serif', 'weight':'normal'})
@@ -10,6 +17,7 @@ rc('font',**{'family':'serif', 'weight':'normal'})
 #rc('font',**{'family':'serif','serif':['Palatino']})
 rc('text', usetex=True)
 rcParams['text.latex.preamble'] = [r'\boldmath']
+rc('legend',**{'fontsize':10})
 
 import os # get correct path for datafiles when called from another directory
 import sys # PATH manipulation to ensure sulfur module is available
@@ -80,14 +88,14 @@ def plot_T_composition(T, n, labels, title, filename=False):
     plt.xlabel('Temperature / K')
     plt.ylabel('Mole fraction $x_i$')
     plt.title(title)
-    plt.xlim(0,1500) and plt.ylim(0,1)
+    plt.xlim(400,1500) and plt.ylim(0,1)
     fig.set_size_inches(8,6)
 
     if filename:
         plt.savefig(filename)
     else:
         plt.show()
-    plt.close()
+    plt.close(fig)
 
 def plot_composition(T, P, data, functionals=False, filename=False):
     """
@@ -125,7 +133,7 @@ def plot_composition(T, P, data, functionals=False, filename=False):
             ml = MultipleLocator(400)
             ax.xaxis.set_major_locator(ml)
             ax.axes.set_ylim([0,1])
-            ax.axes.set_xlim([200,1500])
+            ax.axes.set_xlim([400,1500])
             
             if row == 0:
                 ax.set_title("$10^{" + "{0:d}".format(int(np.log10(p))) + "}$ Pa", fontweight='normal')
@@ -156,7 +164,7 @@ def plot_composition(T, P, data, functionals=False, filename=False):
         plt.savefig(filename)
     else:
         plt.show()
-
+    plt.close(fig)
 
 def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False, filename=False):
 
@@ -216,7 +224,7 @@ def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False
         plt.savefig(filename)
     else:
         plt.show()
-    plt.close()
+    plt.close(fig)
 
 def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
     """
@@ -356,7 +364,7 @@ def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, mu_range=
         plt.savefig(filename)
     else:
         plt.show()
-
+    plt.close(fig)
 
 def plot_mu_contributions( T, P, data, functionals, T_range=(200,1500), filename=False, figsize=(17.2 / 2.54, 17 / 2.54), bottom=0.4, T_units='K', T_increment=400, mu_range=False):
     """
@@ -450,7 +458,7 @@ def plot_mu_contributions( T, P, data, functionals, T_range=(200,1500), filename
         plt.savefig(filename)
     else:
         plt.show()
-    
+    plt.close(fig)
 
 def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
     """
@@ -510,7 +518,63 @@ def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
                     linelist.append('{0},'.format(t) + string.join(['{0:1.4f}'.format(n) for n in data[functional].n[p_index][t_index]],',') + '\n')
                 f.writelines(linelist)
 
-def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False):
+def plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename=False, figsize=(8.4/2.52, 8.4/2.54)):
+    """
+    Plot contribution of mixing entropy and minor phases to free energy.
+
+    Arguments:
+        T: Iterable containing temperature values in K corresponding to data
+        P: Iterable containing pressure values in Pa corresponding to data
+        data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
+              Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
+              n: atom frac of S of each species, corresponding to labels
+              mu: free energy of mixture on atom basis in J mol-1
+              labels: identity labels of each species in mixture
+        functional: Dataset to plot; must be a key in data
+        filename: Filename for plot output. If False (default), print to screen instead.
+        figsize: Figure dimensions in inches
+    
+    """
+
+    T = np.array(T)
+
+    db_file = data_directory + '/' + data_sets[functional]
+    labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV'))
+    S2_thermo = thermo[labels.index('S2')]
+    S8_thermo = thermo[labels.index('S8')]
+
+    def get_gibbs_wrapper(thermo, T, P):
+        return(ase.thermochemistry.IdealGasThermo.get_gibbs_energy(thermo,T,P,verbose=False))
+    v_get_gibbs_energy=np.vectorize(get_gibbs_wrapper)
+
+    fig = plt.figure(figsize=figsize)
+    linestyles=['-','--',':','-.']
+
+    linecycler = cycle(linestyles)
+    for p_index, p in enumerate(P):
+        mu_S2 = v_get_gibbs_energy(S2_thermo,T, p) * eV2Jmol / 2.
+        mu_S8 = v_get_gibbs_energy(S8_thermo,T, p) * eV2Jmol / 8.
+
+        plt.plot(T,( data[functional].mu[p_index] - np.minimum(mu_S2, mu_S8))*1e-3, label=r'$10^{{{0:1.0f}}}$ Pa'.format(np.log10(p)), linestyle=linecycler.next(), color='k')
+
+    plt.xlabel('Temperature / K')
+    plt.ylabel(r'$\mu_{\mathrm{S}} - \mathrm{min}(\frac{\mu_{\mathrm{S}_2}}{2}, \frac{\mu_{\mathrm{S}_8}}{8})$ / kJ mol$^{-1}$')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5,-0.2), ncol=2)
+    plt.subplots_adjust(left=0.26,bottom=0.3)
+
+    ax = plt.gca()
+    ml = MultipleLocator(400)
+    ax.xaxis.set_major_locator(ml)
+    ax.axes.set_xlim([400,1500])
+
+
+    if filename:
+        plt.savefig(filename)
+    else:
+        plt.show()
+    plt.close(fig)
+
+def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False, plot_param_err=False):
     """Generate a surface plot showing recommended S models. Can be slow!
 
     Arguments:
@@ -521,11 +585,13 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
         tolerance: Error threshold for transition region in Jmol-1
         parameterised: Boolean. If True, use parameterised fit (polynomials, erf and gaussian). If False, solve equilibrium at all points (slow!)
         filename: String containing output file. If False, print to screen.
+        plot_param_err: Boolean; request an additional plot showing error of parameterisation
     
 
     """
-    import ase.thermochemistry
-    import ase.db
+
+    figsize = (8.3/2.54, 8.3/2.54)
+
 
     T = np.linspace(min(T_range), max(T_range), resolution)
     P = 10**np.linspace(min(P_range),max(P_range),resolution)[:, np.newaxis]
@@ -548,7 +614,7 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
         mu_S2 = v_get_gibbs_energy(S2_thermo,T, P) * eV2Jmol / 2.
         mu_S8 = v_get_gibbs_energy(S8_thermo,T, P) * eV2Jmol / 8.
 
-    fig = plt.figure(figsize = (8.3/2.54, 8.3/2.54))
+    fig = plt.figure(figsize = figsize)
     CS = plt.contour(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000])
     plt.contourf(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000,1e10], colors=[(0.7,0.7,1.00)])
     # plt.clabel(CS, inline=1, fontsize=10)  # Contour line labels
@@ -570,16 +636,27 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
     else:
         plt.show()
 
-    # plt.figure()
-    # CS = plt.contour(T,np.log10(P).flatten(),abs(mu_S8 - mu_mixture))
-    # plt.clabel(CS, inline=1, fontsize=10)
-    # plt.title('Error of S8')
-    # plt.show()
+    if plot_param_err:
+        mu_param = mu_fit(T,P)
+        fig2 = plt.figure(figsize=figsize)
+        CS2 =plt.contour(T,np.log10(P).flatten(), (mu_param - mu_mixture)*1e-3, cmap='Greys')
+        plt.clabel(CS2, inline=1, fontsize=10, colors='k', fmt='%2.1f')
+        plt.xlabel('Temperature / K')
+        plt.ylabel('$\log_{10}(P)$')
+
+        fig2.subplots_adjust(left=0.15, bottom=0.15)
+        ax = plt.gca()
+        ax.xaxis.set_major_locator(MultipleLocator(base=200))
+
+        if filename:
+            err_filename = os.path.dirname(filename) + '/param_error.' + os.path.basename(filename)
+            plt.savefig(err_filename)
+        else:
+            plt.show()
+        plt.close(fig)
 
 def check_fit():
     """Sanity check for polynomial fitting"""
-    import ase.thermochemistry
-    import ase.db
 
     T = np.linspace(100,1000,10)
     P = np.array([1E3])
@@ -605,7 +682,7 @@ def check_fit():
 def main():
     ### Begin by plotting composition breakdown with PBE0_scaled @ 1 bar ###
 
-    T = np.linspace(50,1500,50)
+    T = np.linspace(400,1500,50)
     P = [10**x for x in (1,5,7)]
     data = compute_data(T=T, P=P, functionals=data_sets.keys())
     #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
@@ -615,7 +692,7 @@ def main():
     ### component contributions; mu with component contributions over smaller T
     ### range
 
-    T = np.arange(50,1500,100)
+    T = np.arange(400,1500,100)
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
     
     plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
@@ -623,6 +700,12 @@ def main():
     plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='plots/mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
 
     plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='plots/mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
+
+    ### Plot contribution of mixing and secondary phases over a range of pressures
+    T = np.linspace(400,1500,50)
+    P = [10**x for x in (1.,3.,5.,7.)]
+    data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
+    plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename='plots/mu_mix_contribution.pdf', figsize=(8.4/2.52, 8.4/2.54))
 
     ### Tabulate data over log pressure range ###
 
@@ -639,7 +722,7 @@ def main():
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
     tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
 
-    plot_surface(resolution=20, parameterised=False, filename='plots/surface.pdf')
+    plot_surface(resolution=10, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
                 
 if __name__ == '__main__':
     main()

@@ -9,20 +9,24 @@ from scipy.special import erf, erfc
 import ase.thermochemistry
 import ase.db
 
+import shelve
 from itertools import cycle
 
 from matplotlib import rc, rcParams
-rc('font',**{'family':'serif', 'weight':'normal'})
+#rc('font',**{'family':'serif', 'weight':'normal'})
 ## for Palatino and other serif fonts use:
 #rc('font',**{'family':'serif','serif':['Palatino']})
+rc('font',**{'family':'sans-serif', 'sans-serif':['Helvetica Neue']})
 rc('text', usetex=True)
-rcParams['text.latex.preamble'] = [r'\boldmath']
+# rcParams['text.latex.preamble'] = [r'\boldmath']
+rcParams['text.latex.preamble'] = [r'\usepackage{helvet} \usepackage{sfmath}']
 rc('legend',**{'fontsize':10})
 
 import os # get correct path for datafiles when called from another directory
 import sys # PATH manipulation to ensure sulfur module is available
 from itertools import izip
 from collections import namedtuple
+Calc_n_mu = namedtuple('Calc_n_mu','n mu labels')
 
 script_directory = os.path.dirname(__file__)
 # Append a trailing slash to make coherent directory name - this would select the
@@ -241,7 +245,6 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
               mu: free energy of mixture on atom basis in J mol-1
               labels: identity labels of each species in mixture
     """
-    Calc_n_mu = namedtuple('Calc_n_mu','n mu labels')
     
     P_ref = 1E5
     eqm_data = {}
@@ -366,7 +369,7 @@ def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, mu_range=
         plt.show()
     plt.close(fig)
 
-def plot_mu_contributions( T, P, data, functionals, T_range=(200,1500), filename=False, figsize=(17.2 / 2.54, 17 / 2.54), bottom=0.4, T_units='K', T_increment=400, mu_range=False):
+def plot_mu_contributions( T, P, data, functionals, T_range=(400,1500), filename=False, figsize=(17.2 / 2.54, 17 / 2.54), bottom=0.4, T_units='K', T_increment=400, mu_range=False):
     """
     Plot free energy of mixture, showing contributions of components.
 
@@ -430,6 +433,7 @@ def plot_mu_contributions( T, P, data, functionals, T_range=(200,1500), filename
             ml = MultipleLocator(T_increment)
             ax.xaxis.set_major_locator(ml)
             ax.axes.set_xlim(T_range)
+
             if mu_range:
                 ax.axes.set_ylim(mu_range)
 
@@ -574,7 +578,7 @@ def plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename=False, 
         plt.show()
     plt.close(fig)
 
-def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False, plot_param_err=False):
+def plot_surface(functional='PBE0_scaled', T_range=(400,1500), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False, plot_param_err=False):
     """Generate a surface plot showing recommended S models. Can be slow!
 
     Arguments:
@@ -601,7 +605,13 @@ def plot_surface(functional='PBE0_scaled', T_range=(300,1200), P_range=(1,7), re
         mu_S2 = mu_S2_fit(T,P) * eV2Jmol / 2.
         mu_S8 = mu_S8_fit(T,P) * eV2Jmol / 8.
     else:
-        data = compute_data(T=T, P=P, functionals=[functional])
+        cache = shelve.open('cache')
+        if cache.has_key('surface'):
+            T, P, data = cache['surface']
+        else:
+            data = compute_data(T=T, P=P, functionals=[functional])
+            cache['surface'] = (T, P, data)
+            cache.close()
         mu_mixture = np.array(data[functional].mu)
         db_file = data_directory+'/'+data_sets[functional]
         labels, thermo, a = unpack_data(db_file,ref_energy=reference_energy(db_file, units='eV'))
@@ -680,49 +690,74 @@ def check_fit():
     plt.show()
                                 
 def main():
-    ### Begin by plotting composition breakdown with PBE0_scaled @ 1 bar ###
 
-    T = np.linspace(400,1500,50)
-    P = [10**x for x in (1,5,7)]
-    data = compute_data(T=T, P=P, functionals=data_sets.keys())
-    #plot_T_composition(T, data['PBE0_scaled'].n[0], data['PBE0_scaled'].labels, 'PBE0, P = 1E5' , filename='composition.pdf')
-    plot_composition(T,P, data, filename='plots/composition.pdf')
+    ### Open cache file for plot data
+
+    cache = shelve.open('cache')
+    
+    ### Begin by plotting composition breakdown with PBE0_scaled at 3 pressures ###
+
+    if cache.has_key('PBE0_composition'):
+        (T, P, data) = cache['PBE0_composition']
+    else:
+        T = np.linspace(400,1500,100)
+        P = [10**x for x in (1,5,7)]
+        data = compute_data(T=T, P=P, functionals=data_sets.keys())
+        cache['PBE0_composition'] = (T, P, data)
+        cache.sync()
+
+    plot_composition(T,P, data, filename='plots/composition_all.pdf')
+    plot_composition(T, P, data, functionals=['LDA', 'PBEsol', 'PBE0_scaled'], filename='plots/composition_selection.pdf')
 
     ### Plots over 3 pressures: mu depending on T, calculation method; mu with
     ### component contributions; mu with component contributions over smaller T
     ### range
-
-    T = np.arange(400,1500,100)
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    if cache.has_key('all_functionals_three_pressures'):
+        (T, P, data) = cache['all_functionals_three_pressures']
+    else:
+        T = np.linspace(400,1500,100)
+        P = [10**x for x in (1,5,7)]
+        data = compute_data(T=T, P=P, functionals = data_sets.keys())
+        cache['all_functionals_three_pressures'] = (T, P, data)
+        cache.sync()
     
-    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))  
+    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_all_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))
+    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','PBE0_scaled'))  
 
-    plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='plots/mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54))
+    plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='plots/mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54), T_range=[400,1500], T_increment=400)
 
     plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='plots/mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
 
     ### Plot contribution of mixing and secondary phases over a range of pressures
-    T = np.linspace(400,1500,50)
-    P = [10**x for x in (1.,3.,5.,7.)]
-    data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
+    if cache.has_key('PBE0_four_pressures'):
+        (T, P, data) = cache['PBE0_four_pressures']
+    else:
+        T = np.linspace(400,1500,100)
+        P = [10**x for x in (1.,3.,5.,7.)]
+        data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
+        cache['PBE0_four_pressures'] = (T, P, data)
+        cache.sync()
     plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename='plots/mu_mix_contribution.pdf', figsize=(8.4/2.52, 8.4/2.54))
 
     ### Tabulate data over log pressure range ###
 
-    # Compact table
+    # # Compact table
     
-    T = np.arange(400,1500,50)
-    P = np.power(10,np.linspace(1,7,10))
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
+    # T = np.arange(400,1500,50)
+    # P = np.power(10,np.linspace(1,7,10))
+    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    # tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
 
-    # Larger table
-    T = np.arange(400,1500,10)
-    P = np.power(10,np.linspace(1,7,15))
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
+    # # Larger table
+    # T = np.arange(400,1500,10)
+    # P = np.power(10,np.linspace(1,7,15))
+    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    # tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
 
-    plot_surface(resolution=10, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
+
+    cache.close()
+    plot_surface(resolution=100, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
                 
 if __name__ == '__main__':
-    main()
+    import cProfile
+    cProfile.run('main()')

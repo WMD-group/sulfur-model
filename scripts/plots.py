@@ -39,7 +39,7 @@ sys.path.insert(0,module_directory)
 
 from sulfur import get_potentials, unpack_data, reference_energy, solve_composition
 
-ordered_species = ['S2','S3_ring','S3_bent','S4_buckled','S4_eclipsed', 'S4_C2h','S5_ring','S6_stack_S3','S6_branched','S6_buckled','S6_chain_63','S7_ring','S7_branched','S8']
+ordered_species = ['S2','S3_ring','S3_bent','S4_buckled','S4_eclipsed','S5_ring','S6_stack_S3','S6_branched','S6_buckled','S6_chain_63','S7_ring','S7_branched','S8']
 
 data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sulfur_pbe0.json', 'PBE0_scaled':'sulfur_pbe0_96.json', 'B3LYP':'sulfur_b3lyp.json'}
 
@@ -60,12 +60,12 @@ eV2Jmol = constants.physical_constants['electron volt-joule relationship'][0] * 
 k = constants.physical_constants['Boltzmann constant in eV/K'][0]
 
 ### Parameters for PBE0_scaled fits ###
-S8_poly = [ -3.80993101e-13,   1.80778884e-09,  -4.01150741e-06,
-        -2.45657416e-03,   7.62018747e-01]
-S2_poly = [ -8.65418878e-14,   4.00096901e-10,  -8.56622340e-07,
-        -1.84833136e-03,   1.20725661e+00]
-gaussian_height_poly = [   49.92188405,   -96.05901548,  1275.83961616]
-T_tr_poly = [   1.82766941,   -8.29481895,   72.7179064 ,  507.70392149]
+S8_poly = [ -3.810e-13,   1.808e-09,  -4.012e-06,
+        -2.457e-03,   7.620e-01]
+S2_poly = [ -8.654e-14,   4.001e-10,  -8.566e-07,
+        -1.848e-03,   1.207e00]
+gaussian_height_poly = [ 6.663e01,   -2.041e02,  1.414e03]
+T_tr_poly = [   1.828,   -8.295,   7.272e01 ,  5.077e02]
 gaussian_b = 10
 gaussian_c = 80
 
@@ -94,6 +94,65 @@ def plot_T_composition(T, n, labels, title, filename=False):
     plt.title(title)
     plt.xlim(400,1500) and plt.ylim(0,1)
     fig.set_size_inches(8,6)
+
+    if filename:
+        plt.savefig(filename)
+    else:
+        plt.show()
+    plt.close(fig)
+
+def plot_frequencies(functionals=False, figsize=False, filename=False):
+    """
+    Plot calculated vibrational mode frequencies of S8 compared to spectroscopic data
+
+    Arguments:
+        functionals: iterable of strings identifying DFT dataset; each string must be a key in 'data_sets' dict
+        figsize: 2-tuple of figure dimensions in inches
+        filename: path to output file. If False (default), print to screen instead.
+
+    """
+    if not functionals:
+        functionals = data_sets.keys()
+
+    if not figsize:
+        figsize = (8.4/2.54, 8.4/2.54)
+
+    fig = plt.figure(figsize=figsize)
+
+    NIST_S8_f = [475,218,471,471,191,191,475,475,152,152,56,56,411,243,437,437,248,248]
+
+    index=0
+    ticklabels=[]
+    for functional in functionals:
+        index += 1
+        db_file = data_directory + '/' + data_sets[functional]
+        db = ase.db.connect(db_file)
+        freqs = db.get_dict('S8').data.frequencies
+        plt.plot([index]*len(freqs),freqs, '_', markersize=20, label=functional)
+        if functional in functional_names:
+            ticklabels.append(functional_names[functional])
+        else:
+            ticklabels.append(functional)
+
+    index +=1
+    plt.plot([index]*len(NIST_S8_f), NIST_S8_f, 'k_', markersize=20, label='Expt')
+    ticklabels.append('Expt')
+
+    plt.xlim(0.5,len(ticklabels)+0.5)
+    axis = plt.gca()
+    axis.xaxis.set_ticks(range(1,len(ticklabels)+1))
+    axis.xaxis.set_ticklabels(ticklabels, rotation=35, ha='right')
+
+    # fontsize=10
+    # for tick in axis.xaxis.get_major_ticks():
+    #     tick.label.set_fontsize(fontsize)
+    # for tick in axis.yaxis.get_major_ticks():
+    #     tick.label.set_fontsize(fontsize)
+
+    plt.ylabel('Frequency / cm$^{-1}$')
+    plt.ylim(0,500)
+
+    plt.subplots_adjust(left=0.2,bottom=0.25)
 
     if filename:
         plt.savefig(filename)
@@ -562,7 +621,7 @@ def plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename=False, 
         plt.plot(T,( data[functional].mu[p_index] - np.minimum(mu_S2, mu_S8))*1e-3, label=r'$10^{{{0:1.0f}}}$ Pa'.format(np.log10(p)), linestyle=linecycler.next(), color='k')
 
     plt.xlabel('Temperature / K')
-    plt.ylabel(r'$\mu_{\mathrm{S}} - \mathrm{min}(\frac{\mu_{\mathrm{S}_2}}{2}, \frac{\mu_{\mathrm{S}_8}}{8})$ / kJ mol$^{-1}$')
+    plt.ylabel(r'$\Delta \mu_{\mathrm{mixture}}$ / kJ mol$^{-1}$')
     plt.legend(loc='upper center', bbox_to_anchor=(0.5,-0.2), ncol=2)
     plt.subplots_adjust(left=0.26,bottom=0.3)
 
@@ -741,23 +800,26 @@ def main():
 
     ### Tabulate data over log pressure range ###
 
-    # # Compact table
+    # Compact table
     
-    # T = np.arange(400,1500,50)
-    # P = np.power(10,np.linspace(1,7,10))
-    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    # tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
+    T = np.arange(400,1500,50)
+    P = np.power(10,np.linspace(1,7,10))
+    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
 
-    # # Larger table
-    # T = np.arange(400,1500,10)
-    # P = np.power(10,np.linspace(1,7,15))
-    # data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    # tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
+    # Larger table
+    T = np.arange(400,1500,10)
+    P = np.power(10,np.linspace(1,7,15))
+    data = compute_data(T=T, P=P, functionals = data_sets.keys())
+    tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
 
 
+    ### Contour plots (high resolution -> Lots eqm solutions -> v. slow data calculation)
     cache.close()
     plot_surface(resolution=100, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
-                
+
+    # Vibrational frequencies
+    plot_frequencies(functionals=['LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'], figsize=False, filename='plots/empirical_freqs.pdf')
+        
 if __name__ == '__main__':
-    import cProfile
-    cProfile.run('main()')
+    main()

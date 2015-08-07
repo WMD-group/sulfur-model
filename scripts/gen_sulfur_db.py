@@ -9,8 +9,9 @@ data_dir = homedir + '/Documents/Data/datasets/sulfur_clusters'
 
 pointgroups = {'S8':'D4d', 'S7_branched':'Cs', 'S7_ring':'Cs', 'S6_branched':'Cs',
                    'S6_buckled':'C2v', 'S6_stack_S3':'D3h', 'S6_chain_63':'C1',
-                   'S5_ring':'Cs', 'S4_C2h':'C2h', 'S4_eclipsed':'C2v', 'S4_buckled':'D2d', 'S3_ring':'D3h',
+                   'S5_ring':'Cs', 'S4_eclipsed':'C2v', 'S4_buckled':'D2d', 'S3_ring':'D3h',
                    'S3_bent':'C2v','S2':'Dinfh'}
+# pointgroup  'S4_C2h':'C2h' removed from dict as this species is unstable (negative frequencies)
 rot_sym = {'C1':['nonlinear',1], 'Cs':['nonlinear',1], 'C2v':['nonlinear',2], 'C2h':['nonlinear',2],
                'D3h':['nonlinear',6], 'D2d':['nonlinear',4],'D4d':['nonlinear',8],
                'Dinfh':['linear',2]}

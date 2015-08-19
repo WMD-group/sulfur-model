@@ -641,7 +641,7 @@ def plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename=False, 
         plt.show()
     plt.close(fig)
 
-def plot_surface(functional='PBE0_scaled', T_range=(400,1500), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False, plot_param_err=False):
+def plot_surface(functional='PBE0_scaled', T_range=(400,1500), P_range=(1,7), resolution=1000, tolerance = 1e4, parameterised=True, filename=False, plot_param_err=False, nodash=False):
     """Generate a surface plot showing recommended S models. Can be slow!
 
     Arguments:
@@ -653,6 +653,7 @@ def plot_surface(functional='PBE0_scaled', T_range=(400,1500), P_range=(1,7), re
         parameterised: Boolean. If True, use parameterised fit (polynomials, erf and gaussian). If False, solve equilibrium at all points (slow!)
         filename: String containing output file. If False, print to screen.
         plot_param_err: Boolean; request an additional plot showing error of parameterisation
+        nodash: Boolean; Skip drawing coexistence line
     
 
     """
@@ -692,13 +693,14 @@ def plot_surface(functional='PBE0_scaled', T_range=(400,1500), P_range=(1,7), re
     plt.contourf(T,np.log10(P).flatten(),np.minimum(abs(mu_S2 - mu_mixture),abs(mu_S8 - mu_mixture)), [1000,1e10], colors=[(0.7,0.7,1.00)])
     # plt.clabel(CS, inline=1, fontsize=10)  # Contour line labels
 
-    plt.plot(T_tr(P),np.log10(P),'k--', linewidth=3)
+    if not nodash:
+        plt.plot(T_tr(P),np.log10(P),'k--', linewidth=3)
     plt.xlim(min(T_range),max(T_range))
     plt.text(500, 4, r'S$_{8}$')
     plt.text(1000, 4, r'S$_{2}$')
 
     plt.xlabel('Temperature / K')
-    plt.ylabel('$\log_{10}(P)$')
+    plt.ylabel('$\log_{10}( P / \mathrm{Pa})$')
 
     fig.subplots_adjust(bottom=0.15, left=0.15)
     ax = plt.gca()
@@ -715,7 +717,7 @@ def plot_surface(functional='PBE0_scaled', T_range=(400,1500), P_range=(1,7), re
         CS2 =plt.contour(T,np.log10(P).flatten(), (mu_param - mu_mixture)*1e-3, cmap='Greys')
         plt.clabel(CS2, inline=1, fontsize=10, colors='k', fmt='%2.1f')
         plt.xlabel('Temperature / K')
-        plt.ylabel('$\log_{10}(P)$')
+        plt.ylabel('$\log_{10}( P / \mathrm{Pa})$')
 
         fig2.subplots_adjust(left=0.15, bottom=0.15)
         ax = plt.gca()
@@ -872,7 +874,7 @@ def main():
 
     ### Contour plots (high resolution -> Lots eqm solutions -> v. slow data calculation)
     cache.close()
-    plot_surface(resolution=100, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
+    plot_surface(resolution=200, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
 
     # Vibrational frequencies
     plot_frequencies(functionals=['LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'], figsize=False, filename='plots/empirical_freqs.pdf')

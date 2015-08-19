@@ -45,6 +45,10 @@ data_sets = {'LDA':'sulfur_lda.json', 'PBEsol':'sulfur_pbesol.json', 'PBE0':'sul
 
 species_colors = {'S2':'#222222','S3_ring':'#a6cee3','S3_bent':'#1f78b4','S4_buckled':'#b2df8a','S4_eclipsed':'#33a02c','S5_ring':'#fb9a99','S6_stack_S3':'#e31a1c','S6_branched':'#fdbf6f','S6_buckled':'#ff7f00','S6_chain_63':'#cab2d6','S7_ring':'#6a3d9a','S7_branched':'#bbbb55','S4_C2h':'#b04040','S8':'#b15928'}
 
+species_markers = {'S2':'8','S3_ring':'>','S3_bent':'<','S4_buckled':'^','S4_eclipsed':'o',
+                   'S5_ring':'d','S6_stack_S3':'D','S6_branched':'H','S6_buckled':'h','S6_chain_63':'*',
+                   'S7_ring':'p','S7_branched':'s','S8':'x'}
+
 # LaTeX formatted names for species. Keys correspond to database keys
 species_names = {'S2':r'S$_2$ (D$_{\infty \mathrm{h}}$)','S3_ring':r'S$_3$ (D$_{3\mathrm{h}}$)','S3_bent':r'S$_3$ (C$_{2\mathrm{v}}$)','S4_buckled':r'S$_4$ (D$_{2\mathrm{d}}$)','S4_eclipsed':r'S$_4$ (C$_{2\mathrm{v}}$)','S4_C2h':r'S$_4$ (C$_{2\mathrm{h}}$)','S5_ring':r'S$_5$ (C$_\mathrm{s}$)','S6_stack_S3':r'S$_6$ (D$_{3 \mathrm{h}}$)','S6_branched':r'S$_6$ (C$_1$, branched)','S6_buckled':r'S$_6$ (C$_{2\mathrm{v}}$)','S6_chain_63':r'S$_6$ (C$_1$, chain)','S7_ring':r'S$_7$ (C$_{\mathrm{s}}$)','S7_branched':r'S$_7$ (C$_\mathrm{s}$, branched)','S8':r'S$_8$ (D$_{4\mathrm{d}}$)'}
 
@@ -731,7 +735,7 @@ def check_fit():
     P = np.array([1E3])
     data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
     mu_mixture = np.array(data['PBE0_scaled'].mu)
-    db_file = data_directory+data_sets['PBE0_scaled']
+    db_file = data_directory+'/'+data_sets['PBE0_scaled']
     labels, thermo, a = unpack_data(db_file,ref_energy=reference_energy(db_file, units='eV'))
     S2_thermo = thermo[labels.index('S2')]
     S8_thermo = thermo[labels.index('S8')]
@@ -747,14 +751,66 @@ def check_fit():
     plt.plot(T, mu_S8_fit(T,P) * eV2Jmol/8., 'k*', label=r"S$_8$ (fit)")
     plt.legend()
     plt.show()
-                                
+
+def plot_energies(functionals=data_sets.keys(), filename=False, figsize=False):
+    if not figsize:
+        figsize = (8.3/2.54, 12/2.54)
+    fig = plt.figure(figsize=figsize)
+
+    gs = gridspec.GridSpec(1,1,left=0.2, bottom=0.35)
+    ax = plt.subplot(gs[0,0])
+    colors = ['r','g','b','k']
+    colorcycler = cycle(colors)
+    
+    for functional in functionals:
+        color=colorcycler.next()
+        db_file = data_directory+'/'+data_sets[functional]
+        c = ase.db.connect(db_file)
+        E_ref = c.get_atoms('S8').get_total_energy()/8.
+        for species in ordered_species:
+            atoms = c.get_atoms(species)
+            E = atoms.get_total_energy()
+            N = atoms.get_number_of_atoms()
+            ax.plot(N, ((E/N)-E_ref)*eV2Jmol*1e-3, marker=species_markers[species], fillstyle='none', color=color)
+
+    # Value from reference data
+    ref_col=(0.4,0.4,0.4)
+    S2_ref_DH0 = 128.300
+    S8_ref_DH0 = 104.388
+
+    ref_value = S2_ref_DH0/2. - S8_ref_DH0/8.
+    ax.plot(2,ref_value,marker='8',fillstyle='full',color=ref_col, linestyle='none')
+
+    plt.xlim(1.5,8.5)
+    plt.xlabel(r'$N$ / S atoms')
+    plt.ylabel(r'$\frac{E_0}{N} - \frac{E_{0,\mathrm{S}_8}}{8}$ / kJ mol$^{-1}$')
+
+    colorcycler=cycle(colors) # reset colorcycler
+    plt.legend([plt.Line2D((0,1),(0,0), color='k', linestyle='none',
+                           marker=species_markers[s], fillstyle='none') for s in ordered_species] +
+                           [plt.Line2D((0,1),(0,0), color=colorcycler.next(), marker=False) for f in functionals] +
+                           [plt.Line2D((0,1),(0,0),color=ref_col, marker='8', fillstyle='full', linestyle='none')],
+               [species_names[s] for s in ordered_species] + functionals + [r'S$_2$ [ref.]'],
+               ncol=3, loc='center', bbox_to_anchor=(0.5,0.12), numpoints=1, fontsize=8, bbox_transform=fig.transFigure)
+    
+
+    if filename:
+        plt.savefig(filename)
+    else:
+        plt.show()
+    plt.close(fig)
+    
 def main():
 
     ### Open cache file for plot data
 
     cache = shelve.open('cache')
+
+    ### Comparison of DFT energies
+
+    plot_energies(functionals=['LDA','PBEsol','B3LYP','PBE0'], filename='plots/energies.pdf', figsize=False)
     
-    ### Begin by plotting composition breakdown with PBE0_scaled at 3 pressures ###
+    ### Plot composition breakdown with PBE0_scaled at 3 pressures ###
 
     if cache.has_key('PBE0_composition'):
         (T, P, data) = cache['PBE0_composition']

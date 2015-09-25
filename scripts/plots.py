@@ -293,7 +293,7 @@ def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False
         plt.show()
     plt.close(fig)
 
-def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
+def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='expt'):
     """
     Solve S_x equilibrium over specified sets of DFT data, temperatures and pressures
 
@@ -301,6 +301,9 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
         functionals: iterable of strings identifying DFT dataset; must be a key in 'data_sets' dict
         T: iterable of temperatures in K
         P: iterable of pressures in Pa
+        ref_energy: Select reference energy. If 'expt' (default), use experimental enthalpy of alpha-S as reference.
+                    If 'S8', use 1/8 * ground state energy of S8 in chosen data set as reference energy.
+                    If a floating point number, the value of ref_energy is used with units of eV/atom.
     Returns
         data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
               Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
@@ -313,7 +316,16 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5]):
     eqm_data = {}
     for functional in functionals:
         db_file = data_directory + '/' + data_sets[functional]
-        labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV'))
+        if type(ref_energy) != str and np.isscalar(ref_energy):  # (Strings are scalar!)
+            print ref_energy
+            print "eh"
+            labels, thermo, a = unpack_data(db_file, ref_energy=ref_energy)
+        elif ref_energy == 'expt':
+            labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV', ref='expt'))
+        elif ref_energy == 'S8':
+            labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV', ref='S8'))
+        else:
+            raise Exception("ref_energy key {0} not recognised")
         n = []
         mu = []
         for p in P:
@@ -858,18 +870,24 @@ def main():
 
     ### Tabulate data over log pressure range ###
 
-    # Compact table
+    # Compact tables
     
     T = np.arange(400,1500,50)
     P = np.power(10,np.linspace(1,7,10))
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory, formatting=('kJmol-1','logP','short'))
+    tabulate_data(data,T,P, path=data_directory+'/alpha_ref', formatting=('kJmol-1','logP','short'))
+
+    data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
+    tabulate_data(data,T,P, path=data_directory+'/S8_ref', formatting=('kJmol-1','logP','short'))
 
     # Larger table
-    T = np.arange(400,1500,10)
+    T = np.arange(200,1500,10)
     P = np.power(10,np.linspace(1,7,15))
     data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory+'/precise', formatting=('Jmol'))
+    tabulate_data(data,T,P, path=data_directory+'/precise/alpha_ref', formatting=('Jmol'))
+    data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
+    tabulate_data(data,T,P, path=data_directory+'/precise/S8_ref', formatting=('Jmol-1'))
+
 
 
     ### Contour plots (high resolution -> Lots eqm solutions -> v. slow data calculation)

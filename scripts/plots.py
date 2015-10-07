@@ -273,8 +273,7 @@ def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False
         plt.xlabel('Temperature / K')
         if subplot_index == 1:
             plt.ylabel('Mole fraction $x_i$')
-        plt.title('P = {0} bar'.format(P*1E-5))
-
+        axes.set_title("$10^{" + "{0:d}".format(int(np.log10(P)) + "}$ Pa", fontweight='normal'))
         subplot_index += 1
 
     # Scale down axes to make way for legend
@@ -814,81 +813,120 @@ def plot_energies(functionals=data_sets.keys(), filename=False, figsize=False):
         plt.show()
     plt.close(fig)
     
-def main():
+def main(plots='all', tables='all', T_range=(400,1500)):
+    """
+    Solve sulfur equilibrium from ab initio data; generate plots and tables.
+
+    A cache file is used to avoid redundant calculations.
+
+    arguments:
+        plots: list of strings indicating desired plots.
+                ['all'] is equivalent to ['energies', 'composition','mu_functionals',
+                                          'mu_all_functionals','mu_contributions',
+                                          'mu_annealing','mix_contribution']
+
+        tables: list of strings indicating results sets to include as tables.
+                ['all'] is equivalent to ['LDA','PBEsol','PBE0','PBE0_scaled','B3LYP']
+                In addition the strings 'long', 'short', 'linear', 'logP' can be used
+                to set the formatting (default is 'short' and 'logP' behaviour)
+
+        T_range: 2-Tuple of upper and lower temperature limits
+    
+    """
 
     ### Open cache file for plot data
 
     cache = shelve.open('cache')
+    if 'T_range' in cache and cache['T_range'] == T_range:
+        cache_T_okay = True
+    else:
+        cache_T_okay = False
+        cache['T_range'] = T_range
+        
 
     ### Comparison of DFT energies
-
-    plot_energies(functionals=['LDA','PBEsol','B3LYP','PBE0'], filename='plots/energies.pdf', figsize=False)
+    if 'all' in plots or 'energies' in plots:
+        plot_energies(functionals=['LDA','PBEsol','B3LYP','PBE0'], filename='plots/energies.pdf', figsize=False)
     
     ### Plot composition breakdown with PBE0_scaled at 3 pressures ###
+    if 'composition' in 'plots':
 
-    if cache.has_key('PBE0_composition'):
-        (T, P, data) = cache['PBE0_composition']
-    else:
-        T = np.linspace(400,1500,100)
-        P = [10**x for x in (1,5,7)]
-        data = compute_data(T=T, P=P, functionals=data_sets.keys())
-        cache['PBE0_composition'] = (T, P, data)
-        cache.sync()
+        if cache_T_okay and cache.has_key('PBE0_composition'):
+            (T, P, data) = cache['PBE0_composition']
+        else:
+            T = np.linspace(T_range[0],T_range[1],100)
+            P = [10**x for x in (1,5,7)]
+            data = compute_data(T=T, P=P, functionals=data_sets.keys())
+            cache['PBE0_composition'] = (T, P, data)
+            cache.sync()
 
-    plot_composition(T,P, data, filename='plots/composition_all.pdf')
-    plot_composition(T, P, data, functionals=['LDA', 'PBEsol', 'PBE0_scaled'], filename='plots/composition_selection.pdf')
+        plot_composition(T,P, data, filename='plots/composition_all.pdf')
+        plot_composition(T, P, data, functionals=['LDA', 'PBEsol', 'PBE0_scaled'], filename='plots/composition_selection.pdf')
 
     ### Plots over 3 pressures: mu depending on T, calculation method; mu with
     ### component contributions; mu with component contributions over smaller T
     ### range
-    if cache.has_key('all_functionals_three_pressures'):
-        (T, P, data) = cache['all_functionals_three_pressures']
-    else:
-        T = np.linspace(400,1500,100)
-        P = [10**x for x in (1,5,7)]
-        data = compute_data(T=T, P=P, functionals = data_sets.keys())
-        cache['all_functionals_three_pressures'] = (T, P, data)
-        cache.sync()
-    
-    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_all_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))
-    plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','PBE0_scaled'))  
-
-    plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='plots/mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54), T_range=[400,1500], T_increment=400)
-
-    plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='plots/mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
+    if any(flag in plots for flag in ('all','mu_functionals','mu_all_functionals',
+                                      'mu_contributions','mu_annealing')):
+        
+        if cache_T_okay and cache.has_key('all_functionals_three_pressures'):
+            (T, P, data) = cache['all_functionals_three_pressures']
+        else:
+            T = np.linspace(T_range[0],T_range[1],100)
+            P = [10**x for x in (1,5,7)]
+            data = compute_data(T=T, P=P, functionals = data_sets.keys())
+            cache['all_functionals_three_pressures'] = (T, P, data)
+            cache.sync()
+    if 'all' in plots or 'mu_all_functionals' in plots:
+        plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_all_functionals.pdf', compact=False, functionals=('LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'))
+    if 'all' in plots or 'mu_functionals' in plots:
+        plot_mu_functionals(data, T, P, mu_range=(-200,100), filename='plots/mu_functionals.pdf', compact=False, functionals=('LDA','PBEsol','PBE0_scaled'))  
+    if 'all' in plots or 'mu_contributions' in plots:
+        plot_mu_contributions(T, P, data, functionals=['PBE0_scaled'], filename='plots/mu_contributions.pdf', figsize=(17.2/2.54, 10/2.54), T_range=[400,1500], T_increment=400)
+    if 'all' in plots or 'mu_annealing' in plots:
+        plot_mu_contributions(T,P,data,functionals=['PBE0_scaled'],filename='plots/mu_for_annealing.pdf', figsize=(17.2/2.54, 10/2.43), T_range=(100,600), T_units='C', T_increment=100, mu_range=(-100,50))
 
     ### Plot contribution of mixing and secondary phases over a range of pressures
-    if cache.has_key('PBE0_four_pressures'):
-        (T, P, data) = cache['PBE0_four_pressures']
-    else:
-        T = np.linspace(400,1500,100)
-        P = [10**x for x in (1.,3.,5.,7.)]
-        data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
-        cache['PBE0_four_pressures'] = (T, P, data)
-        cache.sync()
-    plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename='plots/mu_mix_contribution.pdf', figsize=(8.4/2.52, 8.4/2.54))
+    if 'all' in plots or 'mix_contribution' in plots:
+        if cache_T_okay and cache.has_key('PBE0_four_pressures'):
+            (T, P, data) = cache['PBE0_four_pressures']
+        else:
+            T = np.linspace(400,1500,100)
+            P = [10**x for x in (1.,3.,5.,7.)]
+            data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
+            cache['PBE0_four_pressures'] = (T, P, data)
+            cache.sync()
+        plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename='plots/mu_mix_contribution.pdf', figsize=(8.4/2.52, 8.4/2.54))
 
     ### Tabulate data over log pressure range ###
+    if 'linear' in tables:
+        formatting=[]
+    else:
+        formatting=['logP']
+    if any(flag in tables for flag in ('Jmol','Jmol-1','J/mol')):
+        formatting.append('Jmol-1')
+    else:
+        formatting.append('kJmol-1')
 
-    # Compact tables
-    
-    T = np.arange(400,1500,50)
-    P = np.power(10,np.linspace(1,7,10))
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory+'/alpha_ref', formatting=('kJmol-1','logP','short'))
+        # Compact tables
 
-    data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
-    tabulate_data(data,T,P, path=data_directory+'/S8_ref', formatting=('kJmol-1','logP','short'))
+    if 'all' in tables or 'short' in tables:
+        T = np.arange(400,1500,50)
+        P = np.power(10,np.linspace(1,7,10))
+        data = compute_data(T=T, P=P, functionals = data_sets.keys())
+        tabulate_data(data,T,P, path=data_directory+'/alpha_ref', formatting=formatting+['short'])
 
-    # Larger table
-    T = np.arange(200,1500,10)
-    P = np.power(10,np.linspace(1,7,15))
-    data = compute_data(T=T, P=P, functionals = data_sets.keys())
-    tabulate_data(data,T,P, path=data_directory+'/precise/alpha_ref', formatting=('Jmol'))
-    data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
-    tabulate_data(data,T,P, path=data_directory+'/precise/S8_ref', formatting=('Jmol-1'))
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
+        tabulate_data(data,T,P, path=data_directory+'/S8_ref', formatting=formatting+['short'])
 
-
+        # Larger tables
+    if 'all' in tables or 'long' in tables:
+        T = np.arange(200,1500,10)
+        P = np.power(10,np.linspace(1,7,20))
+        data = compute_data(T=T, P=P, functionals = data_sets.keys())
+        tabulate_data(data,T,P, path=data_directory+'/precise/alpha_ref', formatting=formatting)
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
+        tabulate_data(data,T,P, path=data_directory+'/precise/S8_ref', formatting=formatting)
 
     ### Contour plots (high resolution -> Lots eqm solutions -> v. slow data calculation)
     cache.close()

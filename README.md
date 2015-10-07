@@ -4,7 +4,18 @@ Equilibrium modelling for sulfur vapours, with data from *ab initio* calculation
 The data required for modelling is provided in JSON files under **data/**.
 Raw data from *ab initio* calculations will be made available shortly.
 
-This is work in progress; no claims are made regarding correctness or accuracy at this stage.
+A pre-print of the accompanying academic paper is available at arXiv.org: [arXiv:1509.00722](http://arxiv.org/abs/1509.00722)
+
+## Usage
+* The core functions are implemented as a Python library in the `sulfur` folder.
+
+* Energy and frequency data from density functional theory (DFT) calculations is stored in ASE databases in JSON format in the `data` directory.
+
+* Scripts in the `scripts` folder can be used to explore the model:
+  * `scripts/plots.py` generates all the plots in the academic paper from the .json data files.
+  * `frequency_table.py` writes a summary table of all the frequency data to standard output.
+  * `scripts/gen_sulfur_db.py` is the script used to generate .json data files from the collected _ab initio_ data (to be made available separately with DOI:10.6084/m9.figshare.1566812)
+
 
 ## Requirements
 

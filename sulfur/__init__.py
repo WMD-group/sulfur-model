@@ -86,23 +86,43 @@ def reference_energy(db_file, units='eV', ref='expt'):
     return ref_energy
 
 
-def get_potentials(thermo,T=1000,P_ref=1E5):
+def get_potentials(thermo,T=1000,P_ref=1E5,potential='free_energy'):
     """
-    Calculate chemical potential at given T, P for a range of ASE thermochemistry objects.
+    Calculate thermodynamic potential at given T, P for a range of ASE thermochemistry objects.
 
     Arguments
         thermo: iterable (e.g. list) of ASE thermochemistry objects (CrystalThermo, HarmonicThermo or IdealGasThermo)
         T: Temperature in degrees Kelvin
         P_ref: Pressure in Pa
+        potential: string indicating desired potential. Accepted values: 'free_energy' (default), 'enthalpy'
 
     Returns
         energy_Jmol: Numpy array of free energies in J mol-1  corresponding to objects in iterable
     """
     from scipy import constants
-    
-    energy_eV = [x.get_gibbs_energy(T,P_ref,verbose=False) for x in thermo]
+
+    if potential == 'free_energy':
+        energy_eV = [x.get_gibbs_energy(T,P_ref,verbose=False) for x in thermo]
+    elif potential == 'enthalpy':
+        energy_eV = [x.get_enthalpy(T,verbose=False) for x in thermo]
+    else:
+        raise Exception('Potential \"{0}\" not known'.format(potential))
     energy_Jmol = np.array(energy_eV) * constants.physical_constants['electron volt-joule relationship'][0] * constants.N_A
     return energy_Jmol
+
+def mix_enthalpies(n, thermo, T):
+    """
+    Calculate enthalpy of ideal mixture by summing over components
+
+    Arguments:
+        n: Numpy array of molar fractions (atomic basis)
+        thermo: iterable (e.g. list) if ASE thermochemistry objects corresponding to fractions in n
+
+    Returns:
+        enthalpy_Jmol: Scalar (float) enthalpy of mixture in J/mol
+    """
+    enthalpy_array = get_potentials(thermo, T, potential='enthalpy')
+    return np.sum(n * enthalpy_array)
 
 def solve_composition(a, potentials, P=1., T=500., verbose=False):
     """

@@ -26,7 +26,7 @@ import os # get correct path for datafiles when called from another directory
 import sys # PATH manipulation to ensure sulfur module is available
 from itertools import izip
 from collections import namedtuple
-Calc_n_mu = namedtuple('Calc_n_mu','n mu labels')
+Calc_n_mu = namedtuple('Calc_n_mu','n mu H labels')
 
 script_directory = os.path.dirname(__file__)
 # Append a trailing slash to make coherent directory name - this would select the
@@ -37,7 +37,7 @@ module_directory = os.path.abspath(script_directory + '..')
 data_directory = os.path.abspath(script_directory +  '../data')
 sys.path.insert(0,module_directory)
 
-from sulfur import get_potentials, unpack_data, reference_energy, solve_composition
+from sulfur import get_potentials, unpack_data, reference_energy, solve_composition, mix_enthalpies
 
 ordered_species = ['S2','S3_ring','S3_bent','S4_buckled','S4_eclipsed','S5_ring','S6_stack_S3','S6_branched','S6_buckled','S6_chain_63','S7_ring','S7_branched','S8']
 
@@ -292,7 +292,7 @@ def plot_n_pressures(functional, T=False, P_list=False, P_ref=1E5, compact=False
         plt.show()
     plt.close(fig)
 
-def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='expt'):
+def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='expt', enthalpy=False):
     """
     Solve S_x equilibrium over specified sets of DFT data, temperatures and pressures
 
@@ -300,14 +300,18 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='e
         functionals: iterable of strings identifying DFT dataset; must be a key in 'data_sets' dict
         T: iterable of temperatures in K
         P: iterable of pressures in Pa
-        ref_energy: Select reference energy. If 'expt' (default), use experimental enthalpy of alpha-S as reference.
-                    If 'S8', use 1/8 * ground state energy of S8 in chosen data set as reference energy.
-                    If a floating point number, the value of ref_energy is used with units of eV/atom.
+        ref_energy: Select reference energy. If 'expt' (default), use experimental enthalpy 
+                    of alpha-S as reference. If 'S8', use 1/8 * ground state energy of S8 
+                    in chosen data set as reference energy. If a floating point number, the 
+                    value of ref_energy is used with units of eV/atom.
+        enthalpy: Boolean flag. If True, also compute enthalpy. 
+                  (This costs extra time and is not usually required.)
     Returns
         data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
-              Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
+              Each namedtuple contains the nested lists n[P][T], mu[P][T], H[P][T] and list labels.
               n: atom frac of S of each species, corresponding to labels
               mu: free energy of mixture on atom basis in J mol-1
+              H: enthalpy of mixture on atom basis in J mol-1. False if not computed.
               labels: identity labels of each species in mixture
     """
     
@@ -316,8 +320,6 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='e
     for functional in functionals:
         db_file = data_directory + '/' + data_sets[functional]
         if type(ref_energy) != str and np.isscalar(ref_energy):  # (Strings are scalar!)
-            print ref_energy
-            print "eh"
             labels, thermo, a = unpack_data(db_file, ref_energy=ref_energy)
         elif ref_energy == 'expt':
             labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV', ref='expt'))
@@ -327,26 +329,36 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='e
             raise Exception("ref_energy key {0} not recognised")
         n = []
         mu = []
-        for p in P:
-            # n_p, mu_p = [], []
-            # for t in T:
-            #     n_p_T, mu_p_T = solve_composition(a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
-            #     n_p.append([n_i*a_i for n_i,a_i in izip(n_p_T,a)]) # Convert to atom frac
-            #     mu_p.append(mu_p_T)
-            # n.append(n_p)
-            # mu.append(mu_p)
 
-            n_p_mu_p_double = [
-                ([n_i*a_i for n_i,a_i in izip(n_p_T,a)], mu_p_T) for
-                (n_p_T, mu_p_T) in (
-                    solve_composition(a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
-                    for t in T)
-                ]
-            n_p, mu_p = [x[0] for x in n_p_mu_p_double], [x[1] for x in n_p_mu_p_double]
-            n.append(n_p)
-            mu.append(mu_p)
-            
-        eqm_data.update({functional:Calc_n_mu(n, mu, labels)})                        
+        if enthalpy:
+            n, mu, H = [], [], []
+            for p in P:
+                n_p, mu_p, H_p = [], [], []
+                for t in T:                
+                    n_p_T, mu_p_T = solve_composition(
+                        a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
+                    H_p_T = mix_enthalpies(n_p_T, thermo, t)
+                    n_p.append(n_p_T)
+                    mu_p.append(mu_p_T)
+                    H_p.append(H_p_T)
+                n.append(n_p)
+                mu.append(mu_p)
+                H.append(H_p)
+                                    
+            eqm_data.update({functional:Calc_n_mu(n, mu, H, labels)})
+        else:
+            for p in P:
+                n_p_mu_p_double = [
+                    ([n_i*a_i for n_i,a_i in izip(n_p_T,a)], mu_p_T) for
+                    (n_p_T, mu_p_T) in (
+                        solve_composition(a, get_potentials(thermo, T=t, P_ref=P_ref), P=p/P_ref, T=t)
+                        for t in T)
+                    ]
+                n_p, mu_p = [x[0] for x in n_p_mu_p_double], [x[1] for x in n_p_mu_p_double]
+                n.append(n_p)
+                mu.append(mu_p)
+
+            eqm_data.update({functional:Calc_n_mu(n, mu, False, labels)})
     return eqm_data
 
 def plot_mu_functionals(data, T, P, functionals=False,  T_range=False, mu_range=False, filename=False, compact=False):
@@ -540,13 +552,14 @@ def plot_mu_contributions( T, P, data, functionals, T_range=(400,1500), filename
 
 def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
     """
-    Write tables of composition and free energy
+    Write tables of composition and free energy. Write enthalpy in table if data available.
     
     Arguments:
             data: dict containing Calc_n_mu namedtuples, with keys corresponding to 'functionals'.
               Each namedtuple contains the nested lists n[P][T], mu[P][T] and list labels.
               n: atom frac of S of each species, corresponding to labels
               mu: free energy of mixture on atom basis in J mol-1
+              H: enthalpy of mixture on atom basis in J mol-1
               labels: identity labels of each species in mixture
             T: Iterable containing temperature values in K corresponding to data
             P: Iterable containing pressure values in Pa corresponding to data
@@ -571,9 +584,9 @@ def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
         raise Exception("no valid units in format string {0}".format(formatting))
 
     if 'short' in formatting:
-        mu_string='{0:1.2f}'
+        energy_string='{0:1.2f}'
     else:
-        mu_string='{0:1.4f}'
+        energy_string='{0:1.4f}'
     for functional in data.keys():
         with open(path + 'mu_{0}.csv'.format(functional.lower()), 'w') as f:
             if 'logP' in formatting:
@@ -581,7 +594,7 @@ def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
             else:
                 linelist = ['# T/K,' + string.join(['mu ({0} Pa) / {1}'.format(p, energy_units) for p in P],',') + '\n']
             for t_index, t in enumerate(T):
-                linelist.append( '{0},'.format(t) + string.join([mu_string.format(mu_p[t_index]*energy_units_factor) for mu_p in data[functional].mu],',') + '\n')
+                linelist.append( '{0},'.format(t) + string.join([energy_string.format(mu_p[t_index]*energy_units_factor) for mu_p in data[functional].mu],',') + '\n')
             f.writelines(linelist)
 
     for functional in data.keys():
@@ -595,6 +608,19 @@ def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
                 for t_index, t in enumerate(T):
                     linelist.append('{0},'.format(t) + string.join(['{0:1.4f}'.format(n) for n in data[functional].n[p_index][t_index]],',') + '\n')
                 f.writelines(linelist)
+
+    for functional in data.keys():
+        if type(data[functional].H) != bool:
+            with open(path + 'H_{0}.csv'.format(functional.lower()), 'w') as f:
+                if 'logP' in formatting:
+                    linelist = ['# T/K,' + string.join(['H (10^{0:.2f} Pa) / {1}'.format(np.log10(p), energy_units) for p in P],',') + '\n']
+                else:
+                    linelist = ['# T/K,' + string.join(['H ({0} Pa) / {1}'.format(p, energy_units) for p in P],',') + '\n']
+                for t_index, t in enumerate(T):
+                    linelist.append( '{0},'.format(t) + string.join([energy_string.format(H_p[t_index]*energy_units_factor) for H_p in data[functional].H],',') + '\n')
+                f.writelines(linelist)
+
+             
 
 def plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename=False, figsize=(8.4/2.52, 8.4/2.54)):
     """
@@ -823,7 +849,8 @@ def main(plots='all', tables='all', T_range=(400,1500)):
         plots: list of strings indicating desired plots.
                 ['all'] is equivalent to ['energies', 'composition','mu_functionals',
                                           'mu_all_functionals','mu_contributions',
-                                          'mu_annealing','mix_contribution']
+                                          'mu_annealing','mix_contribution',
+                                          'surface','freqs']
 
         tables: list of strings indicating results sets to include as tables.
                 ['all'] is equivalent to ['LDA','PBEsol','PBE0','PBE0_scaled','B3LYP']
@@ -913,27 +940,29 @@ def main(plots='all', tables='all', T_range=(400,1500)):
     if 'all' in tables or 'short' in tables:
         T = np.arange(400,1500,50)
         P = np.power(10,np.linspace(1,7,10))
-        data = compute_data(T=T, P=P, functionals = data_sets.keys())
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), enthalpy=True)
         tabulate_data(data,T,P, path=data_directory+'/alpha_ref', formatting=formatting+['short'])
 
-        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8', enthalpy=True)
         tabulate_data(data,T,P, path=data_directory+'/S8_ref', formatting=formatting+['short'])
 
         # Larger tables
     if 'all' in tables or 'long' in tables:
         T = np.arange(200,1500,10)
         P = np.power(10,np.linspace(1,7,20))
-        data = compute_data(T=T, P=P, functionals = data_sets.keys())
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), enthalpy=True)
         tabulate_data(data,T,P, path=data_directory+'/precise/alpha_ref', formatting=formatting)
-        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8')
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8', enthalpy=True)
         tabulate_data(data,T,P, path=data_directory+'/precise/S8_ref', formatting=formatting)
 
     ### Contour plots (high resolution -> Lots eqm solutions -> v. slow data calculation)
     cache.close()
-    plot_surface(resolution=200, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
+    if 'all' in plots or 'surface' in plots:
+        plot_surface(resolution=200, parameterised=False, filename='plots/surface.pdf', plot_param_err=True)
 
     # Vibrational frequencies
-    plot_frequencies(functionals=['LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'], figsize=False, filename='plots/empirical_freqs.pdf')
+    if 'all' in plots or 'freqs' in plots:
+        plot_frequencies(functionals=['LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'], figsize=False, filename='plots/empirical_freqs.pdf')
         
 if __name__ == '__main__':
-    main()
+    main(plots=[], tables=['all'])

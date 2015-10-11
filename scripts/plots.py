@@ -1,4 +1,6 @@
 #! /usr/bin/env python
+import argparse
+
 import os.path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -965,4 +967,20 @@ def main(plots='all', tables='all', T_range=(400,1500)):
         plot_frequencies(functionals=['LDA','PBEsol','B3LYP','PBE0','PBE0_scaled'], figsize=False, filename='plots/empirical_freqs.pdf')
         
 if __name__ == '__main__':
-    main(plots=[], tables=['all'])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--plots", type=str, default="all",
+                        help="Plots to generate (as space-separated string). Options are: all"
+                        " energies composition mu_functionals mu_all_functionals"
+                        " mu_contributions mu_annealing mix_contribution surface freqs ")
+    parser.add_argument("-t", "--tables", type=str, default="all",
+                        help="Space-separated string: list of results sets to include as tables."
+                " 'all' is equivalent to 'LDA PBEsol PBE0 PBE0_scaled B3LYP'"
+                " In addition the strings 'long', 'short', 'linear', 'logP' can be used"
+                " to set the formatting (default is 'short' and 'logP' behaviour)")
+    parser.add_argument("-T", "--temp_range", type=float, nargs=2, default=(400.,1500.),
+                        help="Lower and upper temperature limit in K")
+    args = parser.parse_args()
+    plots = args.plots.split()
+    tables = args.tables.split()
+    
+    main(plots=plots, tables=tables, T_range=args.temp_range)

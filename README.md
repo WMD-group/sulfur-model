@@ -1,10 +1,9 @@
 # Sulfur equilibrium models
 
-Equilibrium modelling for sulfur vapours, with data from *ab initio* calculations.
-The data required for modelling is provided in JSON files under **data/**.
-Raw data from *ab initio* calculations will be made available shortly.
+Equilibrium modelling for sulfur vapours, with data from *ab initio* calculations. The data required for modelling is provided in JSON files under **data/**. Raw data from ab initio calculations is available with [DOI:10.6084/m9.figshare.1566812](http://dx.doi.org/10.6084/m9.figshare.1566812).
 
-A pre-print of the accompanying academic paper is available at arXiv.org: [arXiv:1509.00722](http://arxiv.org/abs/1509.00722)
+The accompanying academic paper has accepted to *Chemical Science* and assigned the [DOI:10.1039/C5SC03088A](http://dx.doi.org/10.1039/C5SC03088A).
+*Chemical Science* is publishing the article with Open Acess; alternatively a pre-print is available ([arXiv:1509.00722](http://arxiv.org/abs/1509.00722)).
 
 ## Usage
 * The core functions are implemented as a Python library in the `sulfur` folder.
@@ -27,7 +26,9 @@ A pre-print of the accompanying academic paper is available at arXiv.org: [arXiv
 
 ## Citations
 
-* The data files data/S2.dat and data/S8.dat contain data from Chase, M. W. J. NIST-JANAF Thermochemical Tables, Fourth Edition. J. Phys. Chem. Ref. Data, Monogr. 9, 1–1951 (1998).
+* The [accompanying paper](http://dx.doi.org/10.1039/C5SC03088A): Jackson, A. J., Tiana, D. and Walsh, A., "A universal chemical potential for sulfur vapours", Chem. Sci. (2015)
+
+* The data files data/S2.dat and data/S8.dat contain data from Chase, M. W. J. NIST-JANAF Thermochemical Tables, Fourth Edition. J. Phys. Chem. Ref. Data, Monogr. **9**, 1-1951 (1998).
   They are also used in http://github.com/WMD-Bath/CZTS-model
   
 ## License

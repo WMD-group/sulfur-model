@@ -1,5 +1,7 @@
 # Sulfur equilibrium models
 
+[![DOI](https://zenodo.org/badge/14127/WMD-Bath/sulfur-model.svg)](https://zenodo.org/badge/latestdoi/14127/WMD-Bath/sulfur-model)
+
 Equilibrium modelling for sulfur vapours, with data from *ab initio* calculations. The data required for modelling is provided in JSON files under **data/**. Raw data from ab initio calculations is available with [DOI:10.6084/m9.figshare.1566812](http://dx.doi.org/10.6084/m9.figshare.1566812).
 
 The accompanying academic paper has accepted to *Chemical Science* and assigned the [DOI:10.1039/C5SC03088A](http://dx.doi.org/10.1039/C5SC03088A).

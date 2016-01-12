@@ -304,8 +304,9 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='e
         P: iterable of pressures in Pa
         ref_energy: Select reference energy. If 'expt' (default), use experimental enthalpy 
                     of alpha-S as reference. If 'S8', use 1/8 * ground state energy of S8 
-                    in chosen data set as reference energy. If a floating point number, the 
-                    value of ref_energy is used with units of eV/atom.
+                    in chosen data set as reference energy.
+                    If 'S2', use 1/2 * ground-state energy of S2 in chosen data set as reference energy.
+                    If a floating point number, the value of ref_energy is used with units of eV/atom.
         enthalpy: Boolean flag. If True, also compute enthalpy. 
                   (This costs extra time and is not usually required.)
     Returns
@@ -327,6 +328,8 @@ def compute_data(functionals=['PBE0_scaled'], T=[298.15], P=[1E5], ref_energy='e
             labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV', ref='expt'))
         elif ref_energy == 'S8':
             labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV', ref='S8'))
+        elif ref_energy == 'S2':
+            labels, thermo, a = unpack_data(db_file, ref_energy=reference_energy(db_file, units='eV', ref='S2'))      
         else:
             raise Exception("ref_energy key {0} not recognised")
         n = []
@@ -956,6 +959,8 @@ def main(plots='all', tables='all', T_range=(400,1500)):
         tabulate_data(data,T,P, path=data_directory+'/precise/alpha_ref', formatting=formatting)
         data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8', enthalpy=True)
         tabulate_data(data,T,P, path=data_directory+'/precise/S8_ref', formatting=formatting)
+        data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S2', enthalpy=True)
+        tabulate_data(data,T,P, path=data_directory+'/precise/S2_ref', formatting=formatting)
 
     ### Contour plots (high resolution -> Lots eqm solutions -> v. slow data calculation)
     cache.close()

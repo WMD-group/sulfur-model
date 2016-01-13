@@ -69,6 +69,9 @@ def reference_energy(db_file, units='eV', ref='expt'):
     if ref=='S8':
         ref_energy = s8.get_total_energy() / 8.
 
+    if ref=='S2':
+        ref_energy = c.get_atoms('S2').get_total_energy() / 2.
+
     elif ref=='expt':    
         s8_data_dict = c.get_dict('S8')
         s8_vib_energies = cm_to_hz(np.array(s8_data_dict.data.frequencies)) * constants.physical_constants['Planck constant in eV s'][0]

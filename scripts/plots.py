@@ -578,6 +578,10 @@ def tabulate_data(data,T,P,path='',formatting=('kJmol-1')):
     if path:
         if path[-1] != '/':
             path = path + '/'
+        try:
+            os.mkdir(path)
+        except OSError:
+            pass
 
     if formatting and any([x in formatting for x in ('Jmol-1','Jmol','J/mol')]):
         energy_units = 'J mol-1'
@@ -954,7 +958,7 @@ def main(plots='all', tables='all', T_range=(400,1500)):
         # Larger tables
     if 'all' in tables or 'long' in tables:
         T = np.arange(200,1500,10)
-        P = np.power(10,np.linspace(1,7,20))
+        P = np.power(10,np.linspace(-2,7,25))
         data = compute_data(T=T, P=P, functionals = data_sets.keys(), enthalpy=True)
         tabulate_data(data,T,P, path=data_directory+'/precise/alpha_ref', formatting=formatting)
         data = compute_data(T=T, P=P, functionals = data_sets.keys(), ref_energy='S8', enthalpy=True)

@@ -885,7 +885,7 @@ def main(plots='all', tables='all', T_range=(400,1500)):
         plot_energies(functionals=['LDA','PBEsol','B3LYP','PBE0'], filename='plots/energies.pdf', figsize=False)
     
     ### Plot composition breakdown with PBE0_scaled at 3 pressures ###
-    if 'composition' in 'plots':
+    if 'composition' in plots:
 
         if cache_T_okay and cache.has_key('PBE0_composition'):
             (T, P, data) = cache['PBE0_composition']

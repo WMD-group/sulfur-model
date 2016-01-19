@@ -18,11 +18,11 @@ from matplotlib import rc, rcParams
 #rc('font',**{'family':'serif', 'weight':'normal'})
 ## for Palatino and other serif fonts use:
 #rc('font',**{'family':'serif','serif':['Palatino']})
-rc('font',**{'family':'sans-serif', 'sans-serif':['Helvetica Neue']})
-rc('text', usetex=True)
+#rc('font',**{'family':'sans-serif', 'sans-serif':['Helvetica Neue']})
+#rc('text', usetex=True)
 # rcParams['text.latex.preamble'] = [r'\boldmath']
-rcParams['text.latex.preamble'] = [r'\usepackage{helvet} \usepackage{sfmath}']
-rc('legend',**{'fontsize':10})
+#rcParams['text.latex.preamble'] = [r'\usepackage{helvet} \usepackage{sfmath}']
+#rc('legend',**{'fontsize':10})
 
 import os # get correct path for datafiles when called from another directory
 import sys # PATH manipulation to ensure sulfur module is available
@@ -668,12 +668,12 @@ def plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename=False, 
         mu_S2 = v_get_gibbs_energy(S2_thermo,T, p) * eV2Jmol / 2.
         mu_S8 = v_get_gibbs_energy(S8_thermo,T, p) * eV2Jmol / 8.
 
-        plt.plot(T,( data[functional].mu[p_index] - np.minimum(mu_S2, mu_S8))*1e-3, label=r'$10^{{{0:1.0f}}}$ Pa'.format(np.log10(p)), linestyle=linecycler.next(), color='k')
+        plt.plot(T,( data[functional].mu[p_index] - np.minimum(mu_S2, mu_S8))*1e-3, label=r'{{\normalsize $10^{{{0:1.0f}}}$ Pa}}'.format(np.log10(p)), linestyle=linecycler.next(), color='k')
 
     plt.xlabel('Temperature / K')
     plt.ylabel(r'$\Delta \mu_{\mathrm{mixture}}$ / kJ mol$^{-1}$')
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5,-0.2), ncol=2)
-    plt.subplots_adjust(left=0.26,bottom=0.3)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5,-0.25), ncol=2)
+    plt.subplots_adjust(left=0.26,bottom=0.35)
 
     ax = plt.gca()
     ml = MultipleLocator(400)
@@ -885,8 +885,7 @@ def main(plots='all', tables='all', T_range=(400,1500)):
         plot_energies(functionals=['LDA','PBEsol','B3LYP','PBE0'], filename='plots/energies.pdf', figsize=False)
     
     ### Plot composition breakdown with PBE0_scaled at 3 pressures ###
-    if 'composition' in 'plots':
-
+    if 'composition' in plots:
         if cache_T_okay and cache.has_key('PBE0_composition'):
             (T, P, data) = cache['PBE0_composition']
         else:
@@ -932,7 +931,7 @@ def main(plots='all', tables='all', T_range=(400,1500)):
             data = compute_data(T=T, P=P, functionals=['PBE0_scaled'])
             cache['PBE0_four_pressures'] = (T, P, data)
             cache.sync()
-        plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename='plots/mu_mix_contribution.pdf', figsize=(8.4/2.52, 8.4/2.54))
+        plot_mix_contribution(T, P, data, functional='PBE0_scaled', filename='plots/mu_mix_contribution.pdf', figsize=(8.4/2.52, 10/2.54))
 
     ### Tabulate data over log pressure range ###
     if 'linear' in tables:

@@ -1,0 +1,18 @@
+lines.linewidth   :   2.0    # Line width
+# lines.marker :        o      # Default marker
+lines.antialiased :   True
+
+ font.family       : serif
+ font.serif        : Charter  #, Times New Roman, Bitstream Vera Serif
+ font.sans-serif   :  Helvetica, Bitstream Vera Sans 
+# font.monospace    : Andale Mono, Bitstream Vera Sans Mono
+
+
+text.color        : black
+text.usetex       : True
+text.latex.preamble : \usepackage{siunitx},\usepackage[bitstream-charter]{mathdesign},\usepackage[T1]{fontenc}
+
+# mathtext.default  : it
+# mathtext.fontset  : stix
+
+figure.figsize    : 5.2 , 3.3
